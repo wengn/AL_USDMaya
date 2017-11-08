@@ -1,5 +1,5 @@
 #
-# Copyright 2016 Pixar
+# Copyright 2017 Pixar
 #
 # Licensed under the Apache License, Version 2.0 (the "Apache License")
 # with the following modification; you may not use this file except in
@@ -21,22 +21,29 @@
 # KIND, either express or implied. See the Apache License for the specific
 # language governing permissions and limitations under the Apache License.
 #
-# Jinja2 is a python library, ensure that it is available for use with our
-# specified version of Python.
 #
-if (NOT PYTHON_EXECUTABLE)
-    return()
-endif()
+# Usage:
+#   shebang shebang-str source.py dest.py
+#   shebang file output.cmd
+#
+# The former substitutes '/pxrpythonsubst' in <source.py> with <shebang-str>
+# and writes the result to <dest.py>.  The latter generates a file named
+# <output.cmd> with the contents '@python "%~dp0<file>"';  this is a
+# Windows command script to execute "python <file>" where <file> is in
+# the same directory as the command script.
 
-execute_process(
-    COMMAND 
-        "${PYTHON_EXECUTABLE}" "-c" "import jinja2"
-    RESULT_VARIABLE
-        jinja2ImportResult 
-)
-if (jinja2ImportResult EQUAL 0)
-    message(STATUS "Found Jinja2")
-    set(JINJA2_FOUND True)
-endif()
+import sys
 
+if len(sys.argv) < 3 or len(sys.argv) > 4:
+    print "Usage: %s {shebang-str source.py dest|file output.cmd}" % sys.argv[0]
+    sys.exit(1)
 
+if len(sys.argv) == 3:
+    with open(sys.argv[2], 'w') as f:
+        print >>f, '@python "%%~dp0%s" %%*' % (sys.argv[1], )
+
+else:
+    with open(sys.argv[2], 'r') as s:
+        with open(sys.argv[3], 'w') as d:
+            for line in s:
+                d.write(line.replace('/pxrpythonsubst', sys.argv[1]))
