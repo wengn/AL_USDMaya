@@ -274,7 +274,7 @@ static RefPtr create(TranslatorContextPtr context);
 TfRefPtr<PlugClass>                                                             \
 PlugClass::create(TranslatorContextPtr context) {                               \
   TfType const &type = TfType::Find<TranslatedType>();                          \
-  if(not type.IsUnknown()) {                                                    \
+  if(! type.IsUnknown()) {                                                    \
     TfRefPtr<PlugClass> plugin = TfCreateRefPtr(new This());                    \
     plugin->setTranslatedType(type);                                            \
     plugin->setContext(context);                                                \

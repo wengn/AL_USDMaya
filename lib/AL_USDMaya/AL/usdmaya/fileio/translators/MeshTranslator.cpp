@@ -318,7 +318,7 @@ static void gatherFaceConnectsAndVertices(const UsdGeomMesh& mesh, MFloatPointAr
     {
       int32_t* start = index;
       int32_t* end = index + (faceVertexCount - 1);
-      if(start < indexMax and end < indexMax)
+      if(start < indexMax && end < indexMax)
       {
         std::reverse(start, end + 1);
         index += faceVertexCount;
@@ -342,7 +342,7 @@ static void gatherFaceConnectsAndVertices(const UsdGeomMesh& mesh, MFloatPointAr
   memcpy(&connects[0], (const int32_t*)faceVertexIndices.cdata(), sizeof(int32_t) * faceVertexIndices.size());
 
   normals.setLength(normalsData.size());
-  if(leftHanded and normalsData.size())
+  if(leftHanded && normalsData.size())
   {
     int32_t index = 0;
     double* const optr = &normals[0].x;
@@ -1607,7 +1607,7 @@ MObject MeshTranslator::createNode(const UsdPrim& from, MObject parent, const ch
   const UsdGeomMesh mesh(from);
 
   TfToken orientation;
-  bool leftHanded = (mesh.GetOrientationAttr().Get(&orientation) and orientation == UsdGeomTokens->leftHanded);
+  bool leftHanded = (mesh.GetOrientationAttr().Get(&orientation) && orientation == UsdGeomTokens->leftHanded);
 
   MFnMesh fnMesh;
   MFloatPointArray points;
