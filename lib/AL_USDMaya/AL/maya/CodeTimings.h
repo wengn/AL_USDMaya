@@ -19,6 +19,7 @@
 #include <ostream>
 #include <ctime>
 #include <cassert>
+#include <time.h>
 
 namespace AL {
 namespace maya {
@@ -218,17 +219,18 @@ private:
 
   static inline timespec timeDiff(const timespec startTime, const timespec endTime)
   {
+
     if (endTime.tv_nsec < startTime.tv_nsec)
     {
-      return (timespec) {
-          tv_sec: endTime.tv_sec - 1 - startTime.tv_sec,
-          tv_nsec: 1000000000 + endTime.tv_nsec - startTime.tv_nsec
-        };
-    }
-    return (timespec) {
-        tv_sec: endTime.tv_sec - startTime.tv_sec,
-        tv_nsec: endTime.tv_nsec - startTime.tv_nsec
+      return timespec{
+        endTime.tv_sec - 1 - startTime.tv_sec,
+        1000000000 + endTime.tv_nsec - startTime.tv_nsec
       };
+    }
+    return timespec{
+      endTime.tv_sec - startTime.tv_sec,
+      endTime.tv_nsec - startTime.tv_nsec
+    };
   }
   static inline timespec timeAdd(timespec t1, timespec t2)
   {
@@ -239,7 +241,8 @@ private:
           nsec -= 1000000000;
           sec++;
       }
-      return (timespec){ tv_sec: sec, tv_nsec: nsec };
+
+      return timespec{ sec, nsec };
   }
 
   static ProfilerSectionStackNode m_timeStack[MAX_TIMESTAMP_STACK_SIZE];
