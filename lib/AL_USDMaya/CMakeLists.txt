@@ -153,15 +153,6 @@ list(APPEND AL_usdmaya_public_headers
         ${AL_usdmaya_fileio_translators_headers}
 )
 
-# For maya versions above 2016, we can use cmake import targets.
-if(${MAYA_API_VERSION} STRLESS 2017)
-    find_library(QTGUI_LIBRARY
-        QtGui
-        HINTS
-            ${MAYA_Foundation_LIBRARY}
-    )
-endif()
-
 add_library(${LIBRARY_NAME}
     SHARED
         ${AL_usdmaya_public_headers}
@@ -177,12 +168,16 @@ set_target_properties(${LIBRARY_NAME}
         "MFB_PACKAGE_NAME=${LIBRARY_NAME};MFB_ALT_PACKAGE_NAME=${LIBRARY_NAME};MFB_PACKAGE_MODULE=usdmaya"
 )
 
-add_definitions(-DAL_USDMAYA_LOCATION_NAME="${AL_USDMAYA_LOCATION_NAME}")
+target_compile_definitions(${LIBRARY_NAME}
+    PRIVATE
+        AL_USDMAYA_EXPORT
+        AL_USDMAYA_LOCATION_NAME="${AL_USDMAYA_LOCATION_NAME}"
+)
 
 # AL_USDMayaGL
 target_include_directories(
     ${LIBRARY_NAME}
-    PUBLIC
+    PRIVATE
     ${PXR_INCLUDE_DIRS}
     ${MAYA_INCLUDE_DIRS}
 )
@@ -200,7 +195,6 @@ target_link_libraries(${LIBRARY_NAME}
     usdImaging
     usdImagingGL
     vt
-    rt
     ${PYTHON_LIBRARIES}
     ${Boost_PYTHON_LIBRARY}
     ${MAYA_Foundation_LIBRARY}
@@ -210,6 +204,12 @@ target_link_libraries(${LIBRARY_NAME}
     ${MAYA_OpenMaya_LIBRARY}
     ${MAYA_OpenMayaRender_LIBRARY}
 )
+
+if(UNIX)
+    target_link_libraries(${LIBRARY_NAME}
+        rt
+    )
+endif()
 
 if(${MAYA_API_VERSION} STRGREATER 2017)
     target_link_libraries(${LIBRARY_NAME}
@@ -225,9 +225,7 @@ else()
     )
 endif()
 
-install(TARGETS ${LIBRARY_NAME}
-    LIBRARY
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
 
 set_property(GLOBAL PROPERTY GLOBAL_LIBRARY_LOCATION ${CMAKE_INSTALL_PREFIX}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}${LIBRARY_NAME}${CMAKE_SHARED_LIBRARY_SUFFIX})
@@ -248,15 +246,22 @@ set_target_properties(${PYTHON_LIBRARY_NAME}
     PROPERTIES 
         PREFIX ""
 )
+
+if(MSVC)
+    set_target_properties(${PYTHON_LIBRARY_NAME}
+        PROPERTIES
+            SUFFIX ".pyd"
+    )
+endif()
+
 target_link_libraries(${PYTHON_LIBRARY_NAME}
     ${LIBRARY_NAME}
 )
 
 # bake plugInfo.json using pxr macro
-_plugInfo_subst(${LIBRARY_NAME} plugInfo.json)
+configure_file(plugInfo.json plugInfo.json)
 
 install(TARGETS ${PYTHON_LIBRARY_NAME}
-    LIBRARY
     DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/python/${arDirPath}
 )
 set_target_properties(${PYTHON_LIBRARY_LOCATION}

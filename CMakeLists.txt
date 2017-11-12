@@ -17,8 +17,6 @@ else()
     include(${USD_CONFIG_FILE})
 endif()
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/modules")
-
 #set cmake modules - ";" separated not ":"!
 list(APPEND CMAKE_MODULE_PATH
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/defaults
@@ -31,6 +29,7 @@ find_package(PythonInterp)
 
 include(ProjectDefaults)
 include(Public)
+
 include(CXXDefaults)
 
 add_definitions(-DPXR_PYTHON_SUPPORT_ENABLED)
@@ -40,10 +39,15 @@ add_definitions(${_PXR_CXX_DEFINITIONS})
 find_package(Maya REQUIRED)
 include_directories(${MAYA_INCLUDE_DIRS})
 
-if(${MAYA_API_VERSION} STRGREATER 2017)
-    find_package(Qt5Gui REQUIRED)
+if(MSVC)
+    set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/qt/win")
+    find_package(Qt5 COMPONENTS Gui REQUIRED NO_SYSTEM_ENVIRONMENT_PATH)
 else()
-    find_package(Qt4 REQUIRED QtGui)
+    if(${MAYA_API_VERSION} STRGREATER 2017)
+        find_package(Qt5Gui REQUIRED)
+    else()
+        find_package(Qt4 REQUIRED QtGui)
+    endif()
 endif()
 
 include_directories(${PXR_INCLUDE_DIRS})
@@ -56,12 +60,16 @@ find_package(Boost COMPONENTS
                 REQUIRED
 )
 
-set(CMAKE_CXX_FLAGS
-    -std=c++11
-    -msse3
-    "${_PXR_CXX_WARNING_FLAGS}"
-)
-string(REPLACE ";" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "${_PXR_CXX_FLAGS}")
+if(LINUX)
+    set(CMAKE_CXX_FLAGS
+        -std=c++11
+        -msse3
+        "${CMAKE_CXX_FLAGS}"
+    )
+    string(REPLACE ";" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--enable-new-dtags")
+endif()
 
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 

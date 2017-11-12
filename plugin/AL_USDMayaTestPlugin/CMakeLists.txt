@@ -45,30 +45,30 @@ list(APPEND AL_maya_test_source
         test_usdmaya.cpp
 )
 
-add_definitions(-DAL_USDMAYA_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/test_data")
+add_library(${PXR_PACKAGE} ${AL_maya_test_source} plugin.cpp)
 
-add_definitions(
-    -DAL_USDMAYA_UNITTEST
+target_compile_definitions(${PXR_PACKAGE}
+    PRIVATE
+        AL_USDMAYA_UNITTEST
+        AL_USDMAYA_TEST_PLUGIN_EXPORT
+        AL_USDMAYA_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/test_data"
 )
 
-pxr_plugin(${PXR_PACKAGE}
-    LIBRARIES
-        ar
-        arch
-        AL_USDMaya
-      	usdImaging
-        usdImagingGL
-        ${GTEST_LIBRARIES}
-        ${MAYA_LIBRARIES}
+target_link_libraries(${PXR_PACKAGE}
+    ar
+    arch
+    AL_USDMaya
+    usdImaging
+    usdImagingGL
+    ${GTEST_LIBRARIES}
+    ${MAYA_LIBRARIES}
+)
 
-    INCLUDE_DIRS
+target_include_directories(${PXR_PACKAGE}
+    PRIVATE
         ${GTEST_INCLUDE_DIRS}
         ${MAYA_INCLUDE_DIRS}
-        "../../lib/AL_USDMaya"
-
-    CPPFILES
-        ${AL_maya_test_source}
-        plugin.cpp
+        "../../lib/AL_USDMaya"    
 )
 
 add_test(
@@ -77,4 +77,19 @@ add_test(
         ${CMAKE_CURRENT_SOURCE_DIR}/run_mayaplugin_tests.sh
             ${CMAKE_INSTALL_PREFIX}
             ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+if(MSVC)
+    set_target_properties(${PXR_PACKAGE} PROPERTIES SUFFIX ".mll")
+else()
+    set_target_properties(${PXR_PACKAGE}
+        PROPERTIES
+            PREFIX ""
+            INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib"
+    )
+endif()
+
+install(
+    TARGETS ${PXR_PACKAGE}
+    DESTINATION plugin
 )
