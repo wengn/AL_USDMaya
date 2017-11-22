@@ -21,6 +21,9 @@
 #include "AL/maya/tests/NodeHelperUnitTest.h"
 #include "AL/UnitTestHarness.h"
 
+#include "./Api.h"
+
+AL_USDMAYA_TEST_PLUGIN_PUBLIC
 MStatus initializePlugin(MObject obj)
 {
   MFnPlugin plugin(obj, "Animal Logic", "1.0", "Any");
@@ -31,6 +34,7 @@ MStatus initializePlugin(MObject obj)
   return AL::usdmaya::registerPlugin(plugin);
 }
 
+AL_USDMAYA_TEST_PLUGIN_PUBLIC
 MStatus uninitializePlugin(MObject obj)
 {
   MFnPlugin plugin(obj);

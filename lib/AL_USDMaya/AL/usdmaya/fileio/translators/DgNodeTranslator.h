@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 #pragma once
+#include "AL/maya/Api.h"
+
 #include "AL/usdmaya/Common.h"
 #include "AL/usdmaya/AttributeType.h"
 #include "AL/maya/DgNodeHelper.h"
@@ -49,6 +51,7 @@ public:
 
   /// \brief  static type registration
   /// \return MS::kSuccess if ok
+  AL_USDMAYA_PUBLIC
   static MStatus registerType();
 
   /// \brief  Creates a new maya node of the given type and set attributes based on input prim
@@ -71,6 +74,7 @@ public:
   /// \param  to the USD prim to copy the attributes to
   /// \param  params the exporter params to determine what should be exported
   /// \return MS::kSuccess if ok
+  AL_USDMAYA_PUBLIC
   static MStatus copyAttributes(const MObject& from, UsdPrim& to, const ExporterParams& params);
 
   /// \brief  A temporary solution. Given a custom attribute, if a translator handles it somehow (i.e. lazy approach to
@@ -98,6 +102,7 @@ public:
   /// \param  attr the attribute handle
   /// \param  op the USD transform op that contains the keyframe data
   /// \return MS::kSuccess on success, error code otherwise
+  AL_USDMAYA_PUBLIC
   static MStatus setAngleAnim(MObject node, MObject attr, const UsdGeomXformOp op);
 
   /// \brief  creates animation curves in maya for the specified attribute
@@ -106,6 +111,7 @@ public:
   /// \param  usdAttr the USD attribute that contains the keyframe data
   /// \param  conversionFactor a scaling to apply to the key frames on import
   /// \return MS::kSuccess on success, error code otherwise
+  AL_USDMAYA_PUBLIC
   static MStatus setFloatAttrAnim(MObject node, MObject attr, UsdAttribute usdAttr, double conversionFactor = 1.0);
 
   //--------------------------------------------------------------------------------------------------------------------
@@ -117,6 +123,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus getUsdBoolArray(const MObject& node, const MObject& attr, VtArray<bool>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -124,6 +131,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus getUsdInt8Array(const MObject& node, const MObject& attr, VtArray<int8_t>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -131,6 +139,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus getUsdInt16Array(const MObject& node, const MObject& attr, VtArray<int16_t>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -138,6 +147,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus getUsdInt32Array(const MObject& node, const MObject& attr, VtArray<int32_t>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -145,6 +155,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus getUsdInt64Array(const MObject& node, const MObject& attr, VtArray<int64_t>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -152,6 +163,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus getUsdHalfArray(const MObject& node, const MObject& attr, VtArray<GfHalf>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -159,6 +171,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus getUsdFloatArray(const MObject& node, const MObject& attr, VtArray<float>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -166,6 +179,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus getUsdDoubleArray(const MObject& node, const MObject& attr, VtArray<double>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -173,6 +187,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus setUsdBoolArray(const MObject& node, const MObject& attr, const VtArray<bool>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -180,6 +195,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus setUsdInt8Array(const MObject& node, const MObject& attr, const VtArray<int8_t>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -187,6 +203,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus setUsdInt16Array(const MObject& node, const MObject& attr, const VtArray<int16_t>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -194,6 +211,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus setUsdInt32Array(const MObject& node, const MObject& attr, const VtArray<int32_t>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -201,6 +219,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus setUsdInt64Array(const MObject& node, const MObject& attr, const VtArray<int64_t>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -208,6 +227,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus setUsdHalfArray(const MObject& node, const MObject& attr, const VtArray<GfHalf>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -215,6 +235,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus setUsdFloatArray(const MObject& node, const MObject& attr, const VtArray<float>& values);
 
   /// \name   get data from maya attribute, and store in the USD values array
@@ -222,6 +243,7 @@ public:
   /// \param  attr the attribute to get the data from
   /// \param  values the returned array data
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus setUsdDoubleArray(const MObject& node, const MObject& attr, const VtArray<double>& values);
 
   //--------------------------------------------------------------------------------------------------------------------
@@ -233,6 +255,7 @@ public:
   /// \param  attr the attribute to copy the data to
   /// \param  value the USD attribute to copy the data from
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus copyBool(MObject node, MObject attr, const UsdAttribute& value);
 
   /// \brief  copy a boolean value from USD and apply to Maya attribute
@@ -240,6 +263,7 @@ public:
   /// \param  attr the attribute to copy the data to
   /// \param  value the USD attribute to copy the data from
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus copyFloat(MObject node, MObject attr, const UsdAttribute& value);
 
   /// \brief  copy a boolean value from USD and apply to Maya attribute
@@ -247,6 +271,7 @@ public:
   /// \param  attr the attribute to copy the data to
   /// \param  value the USD attribute to copy the data from
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus copyDouble(MObject node, MObject attr, const UsdAttribute& value);
 
   /// \brief  copy a boolean value from USD and apply to Maya attribute
@@ -254,6 +279,7 @@ public:
   /// \param  attr the attribute to copy the data to
   /// \param  value the USD attribute to copy the data from
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus copyInt(MObject node, MObject attr, const UsdAttribute& value);
 
   /// \brief  copy a boolean value from USD and apply to Maya attribute
@@ -261,6 +287,7 @@ public:
   /// \param  attr the attribute to copy the data to
   /// \param  value the USD attribute to copy the data from
   /// \return MS::kSuccess if succeeded
+  AL_USDMAYA_PUBLIC
   static MStatus copyVec3(MObject node, MObject attr, const UsdAttribute& value);
 
   //--------------------------------------------------------------------------------------------------------------------
@@ -273,6 +300,7 @@ public:
   /// \param  usdAttr the attribute to copy the from
   /// \param  type the attribute type
   /// \return MS::kSuccess if succeeded, error code otherwise
+  AL_USDMAYA_PUBLIC
   static MStatus setSingleMayaValue(MObject node, MObject attr, const UsdAttribute& usdAttr, const UsdDataType type);
 
   /// \brief  copy an array value from a usd attribute into the maya attribute specified
@@ -281,6 +309,7 @@ public:
   /// \param  usdAttr the attribute to copy the from
   /// \param  type the attribute type of the array elements
   /// \return MS::kSuccess if succeeded, error code otherwise
+  AL_USDMAYA_PUBLIC
   static MStatus setArrayMayaValue(MObject node, MObject attr, const UsdAttribute& usdAttr, const UsdDataType type);
 
   /// \brief  copy the value from the usdAttribute onto the maya attribute value
@@ -288,30 +317,35 @@ public:
   /// \param  attr the attribute to copy the data to
   /// \param  usdAttr the attribute to copy the from
   /// \return MS::kSuccess if succeeded, error code otherwise
+  AL_USDMAYA_PUBLIC
   static MStatus setMayaValue(MObject node, MObject attr, const UsdAttribute& usdAttr);
 
   /// \brief  creates a new dynamic attribute on the Maya node specified which will be initialized from the usdAttr.
   /// \param  node the node to copy the attribute data to
   /// \param  usdAttr the attribute to copy the from
   /// \return MS::kSuccess if succeeded, error code otherwise
+  AL_USDMAYA_PUBLIC
   static MStatus addDynamicAttribute(MObject node, const UsdAttribute& usdAttr);
 
   /// \brief  copy all custom attributes from the usd primitive onto the maya node.
   /// \param  node the node to copy the attributes to
   /// \param  prim the USD prim to copy the attributes from
   /// \return MS::kSuccess if succeeded, error code otherwise
+  AL_USDMAYA_PUBLIC
   static MStatus copyDynamicAttributes(MObject node, UsdPrim& prim);
 
   /// \brief  copy the attribute value from the plug specified, at the given time, and store the data on the usdAttr.
   /// \param  attr the attribute to be copied
   /// \param  usdAttr the attribute to copy the data to
   /// \param  timeCode the timecode to use when setting the data
+  AL_USDMAYA_PUBLIC
   static void copyAttributeValue(const MPlug& attr, UsdAttribute& usdAttr, const UsdTimeCode& timeCode);
 
   /// \brief  copy the attribute value from the plug specified, at the given time, and store the data on the usdAttr.
   /// \param  plug the attribute to be copied
   /// \param  usdAttr the attribute to copy the data to
   /// \param  timeCode the timecode to use when setting the data
+  AL_USDMAYA_PUBLIC
   static void copySimpleValue(const MPlug& plug, UsdAttribute& usdAttr, const UsdTimeCode& timeCode);
 
   /// \brief  copy the attribute value from the plug specified, at the given time, and store the data on the usdAttr.
@@ -319,6 +353,7 @@ public:
   /// \param  usdAttr the attribute to copy the data to
   /// \param  scale a scaling factor to apply to provide support for
   /// \param  timeCode the timecode to use when setting the data
+  AL_USDMAYA_PUBLIC
   static void copyAttributeValue(const MPlug& attr, UsdAttribute& usdAttr, float scale, const UsdTimeCode& timeCode);
 
   /// \brief  copy the attribute value from the plug specified, at the given time, and store the data on the usdAttr.
@@ -326,12 +361,14 @@ public:
   /// \param  usdAttr the attribute to copy the data to
   /// \param  scale a scaling factor to apply to provide support for
   /// \param  timeCode the timecode to use when setting the data
+  AL_USDMAYA_PUBLIC
   static void copySimpleValue(const MPlug& plug, UsdAttribute& usdAttr, float scale, const UsdTimeCode& timeCode);
 
   /// \brief  convert value from the plug specified and set it to usd attribute.
   /// \param  plug the plug to copy the attributes value from
   /// \param  usdAttr the USDAttribute to set the attribute value to
   /// \return MS::kSuccess if the conversion success based on certain rules.
+  AL_USDMAYA_PUBLIC
   static MStatus convertSpecialValueToUSDAttribute(const MPlug& plug, UsdAttribute& usdAttr);
 };
 

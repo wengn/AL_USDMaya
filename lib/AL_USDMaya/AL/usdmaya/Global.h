@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 #pragma once
+#include "AL/maya/Api.h"
+
 #include "AL/usdmaya/Common.h"
 #include "maya/MSceneMessage.h"
 
@@ -30,10 +32,10 @@ class Global
 public:
 
   /// \brief  initialise the global state
-  static void onPluginLoad();
+  AL_USDMAYA_PUBLIC static void onPluginLoad();
 
   /// \brief  uninitialise the global state
-  static void onPluginUnload();
+  AL_USDMAYA_PUBLIC static void onPluginUnload();
 
 private:
   static MCallbackId m_preSave;  ///< callback prior to saving the scene (so we can store the session layer)

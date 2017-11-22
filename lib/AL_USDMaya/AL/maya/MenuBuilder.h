@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 #pragma once
+#include "AL/maya/Api.h"
+
 #include "AL/maya/Common.h"
 
 #include "maya/MStatus.h"
@@ -86,7 +88,7 @@ public:
     inline void print_indent(std::ostream& os, int indent) const
       { for(int i = 0; i <= indent; ++i) os << "  "; }
 
-    void generate(std::ostringstream& os, std::ostringstream& kill, const char* prefix, int indent = 0) const;
+	  AL_USDMAYA_PUBLIC void generate(std::ostringstream& os, std::ostringstream& kill, const char* prefix, int indent = 0) const;
 
     const std::string& name() const { return m_name; }
     const std::set<Menu>& childMenus() const { return m_childMenus; }
@@ -176,7 +178,7 @@ public:
   }
 
 private:
-  static std::set<Menu> m_menus;
+  AL_USDMAYA_PUBLIC static std::set<Menu> m_menus;
 };
 
 //----------------------------------------------------------------------------------------------------------------------

@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 #pragma once
+#include "AL/maya/Api.h"
 #include "AL/usdmaya/TransformOperation.h"
 
 #include "maya/MPxTransformationMatrix.h"
@@ -255,11 +256,11 @@ public:
   static bool pushMatrix(const MMatrix& input, UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::Default());
 
   /// \brief  the type ID of the transformation matrix
-  static const MTypeId kTypeId;
+  AL_USDMAYA_PUBLIC static const MTypeId kTypeId;
 
   /// \brief  create an instance of  this transformation matrix
   /// \return a new instance of this transformation matrix
-  static MPxTransformationMatrix* creator();
+  AL_USDMAYA_PUBLIC static MPxTransformationMatrix* creator();
 
   /// \brief  ctor
   TransformationMatrix();

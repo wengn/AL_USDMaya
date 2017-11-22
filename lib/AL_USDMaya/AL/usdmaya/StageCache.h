@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 #pragma once
+#include "AL/maya/Api.h"
+
 #include "pxr/pxr.h"
 #include "pxr/usd/usd/stageCache.h"
 
@@ -36,12 +38,15 @@ public:
   /// \param  forcePopulate determine which cache to return
   /// \return the cache requested
   /// \todo we need to offer a way of mapping from a specific ProxyShape to a specific stage
-  static UsdStageCache& Get(bool forcePopulate = true);
+  AL_USDMAYA_PUBLIC
+	static UsdStageCache& Get(bool forcePopulate = true);
 
   /// \brief  Clear the cache
-  static void Clear();
+  AL_USDMAYA_PUBLIC
+	 static void Clear();
 
   /// \brief  deletes the callbacks constructed to manage the stage cache
+  AL_USDMAYA_PUBLIC
   static void removeCallbacks();
 private:
   static MCallbackId beforeNewCallbackId;

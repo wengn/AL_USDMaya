@@ -16,6 +16,8 @@
 #pragma once
 #include <cstdint>
 
+#include "AL/maya/Api.h"
+
 // The plug-in auto-generates a lot of MEL script GUI code in the background. If you want to see the generated
 // code, set this define to 1
 #if !defined(AL_MAYA_PRINT_UI_CODE)
@@ -181,19 +183,19 @@ class ProfilerSectionTag;
 #else
 # define AL_MAYA_DECLARE_COMMAND() \
     static const char* const g_helpText; \
-    static void* creator(); \
-    static MSyntax createSyntax(); \
-    static const MString kName;
+    AL_USDMAYA_PUBLIC static void* creator(); \
+    AL_USDMAYA_PUBLIC static MSyntax createSyntax(); \
+    AL_USDMAYA_PUBLIC static const MString kName;
 
 # define AL_MAYA_DEFINE_COMMAND(COMMAND, NAMESPACE) \
     void* COMMAND :: creator() { return new COMMAND; } \
     const MString COMMAND :: kName(#NAMESPACE "_" #COMMAND);
 
 # define AL_MAYA_DECLARE_NODE() \
-    static void* creator(); \
-    static MStatus initialise(); \
-    static const MString kTypeName; \
-    static const MTypeId kTypeId;
+    AL_USDMAYA_PUBLIC static void* creator(); \
+    AL_USDMAYA_PUBLIC static MStatus initialise(); \
+    AL_USDMAYA_PUBLIC static const MString kTypeName; \
+    AL_USDMAYA_PUBLIC static const MTypeId kTypeId;
 
 # define AL_MAYA_DEFINE_NODE(NODE, TYPEID, NAMESPACE) \
     void* NODE :: creator() { return new NODE; } \

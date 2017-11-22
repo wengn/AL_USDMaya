@@ -211,7 +211,7 @@ class ProxyShape
     public proxy::PrimFilterInterface,
     public TfWeakBase
 {
-  friend class SelectionUndoHelper;
+  friend struct SelectionUndoHelper;
   friend class ProxyShapeUI;
 public:
 

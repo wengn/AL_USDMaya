@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 #pragma once
+#include "AL/maya/Api.h"
+
 #include "AL/maya/Common.h"
 
 #include "maya/MString.h"
@@ -35,16 +37,16 @@ class OptionsParser
 public:
 
   /// \brief  ctor
-  OptionsParser();
+  AL_USDMAYA_PUBLIC OptionsParser();
 
   /// \brief  dtor
-  ~OptionsParser();
+  AL_USDMAYA_PUBLIC ~OptionsParser();
 
   /// \brief  Given a string containing a semi-colon separated list of options passed to a file translator plugin,
   ///         this function will parse and extract all of the option values.
   /// \param  optionString the option string to parse
   /// \return MS::kSuccess if the parsing was successful, false otherwise.
-  MStatus parse(const MString& optionString);
+  AL_USDMAYA_PUBLIC MStatus parse(const MString& optionString);
 
   /// \brief  Given the text name of an option, returns the boolean value for that option.
   /// \param  str the name of the option
@@ -166,7 +168,7 @@ public:
 
   /// \brief  ctor
   /// \param  fileTranslatorName the name of the file translator
-  FileTranslatorOptions(const char* fileTranslatorName);
+  AL_USDMAYA_PUBLIC FileTranslatorOptions(const char* fileTranslatorName);
 
   /// \name   High Level Layout
   /// \brief  A collection of file translator options can be grouped into 1 or more GUI frames within the GUI.
@@ -175,7 +177,7 @@ public:
   /// \brief  add a new frame layout under which to group a set of controls. There must be at least 1 frame created
   ///         before you create any options (otherwise the controls will not have a location in which to live)
   /// \param  frameName the name of the high level frame to add into the GUI
-  bool addFrame(const char* frameName);
+  AL_USDMAYA_PUBLIC bool addFrame(const char* frameName);
 
   /// \name   Add Exporter Options
   /// \brief  Add custom export/import options using the following methods. There must be at least 1 frame layout
@@ -185,25 +187,25 @@ public:
   /// \param  optionName the name of the option
   /// \param  defaultValue the default value for the option
   /// \return true if the option was successfully added. False if the option is a duplicate
-  bool addBool(const char* optionName, bool defaultValue = false);
+  AL_USDMAYA_PUBLIC bool addBool(const char* optionName, bool defaultValue = false);
 
   /// \brief  Add an integer value to the translator options
   /// \param  optionName the name of the option
   /// \param  defaultValue the default value for the option
   /// \return true if the option was successfully added. False if the option is a duplicate
-  bool addInt(const char* optionName, int defaultValue = 0);
+  AL_USDMAYA_PUBLIC bool addInt(const char* optionName, int defaultValue = 0);
 
   /// \brief  Add a float value to the translator options
   /// \param  optionName the name of the option
   /// \param  defaultValue the default value for the option
   /// \return true if the option was successfully added. False if the option is a duplicate
-  bool addFloat(const char* optionName, float defaultValue = 0.0f);
+  AL_USDMAYA_PUBLIC bool addFloat(const char* optionName, float defaultValue = 0.0f);
 
   /// \brief  Add a string value to the translator options
   /// \param  optionName the name of the option
   /// \param  defaultValue the default value for the option
   /// \return true if the option was successfully added. False if the option is a duplicate
-  bool addString(const char* optionName, const char* const defaultValue = "");
+  AL_USDMAYA_PUBLIC bool addString(const char* optionName, const char* const defaultValue = "");
 
   /// \brief  For a given boolean option (the controller), if enabled the 'controlled' option will be editable. If
   ///         the checkbox is uncecked, the controlled option will be disabled in the GUI. The invertBehaviour
@@ -214,7 +216,7 @@ public:
   ///         if false, controlled will be enabled when controller is enabled.
   /// \return true if the visibility relationship could be created. May return false if the controller or
   ///         controlled options are invalid.
-  bool boolControlsVisibility(const char* controller, const char* controlled, bool invertBehaviour = false);
+  AL_USDMAYA_PUBLIC bool boolControlsVisibility(const char* controller, const char* controlled, bool invertBehaviour = false);
 
   /// \name   MEL script code generation
   /// \brief  Once all of the options have been added for the file translator, then you can easily generate the
@@ -227,7 +229,7 @@ public:
   /// \param  defaultOptionString the returned default option string for the file translator (which can be used
   ///         when registering your file translator with the MFnPlugin)
   /// \return MS::kSuccess if ok
-  MStatus generateScript(OptionsParser& optionParser, MString& defaultOptionString);
+  AL_USDMAYA_PUBLIC MStatus generateScript(OptionsParser& optionParser, MString& defaultOptionString);
 
 protected:
 #ifndef AL_GENERATING_DOCS

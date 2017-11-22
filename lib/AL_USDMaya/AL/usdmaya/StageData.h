@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 #pragma once
+#include "AL/maya/Api.h"
+
 #include "AL/usdmaya/Common.h"
 
 #include "maya/MPxGeometryData.h"
@@ -43,17 +45,17 @@ public:
   ~StageData();
 
   /// \brief  creates an instance of this data object
-  static void* creator();
+  AL_USDMAYA_PUBLIC static void* creator();
 
   /// \brief  copy the input stage data into this node
   /// \param  aDatum the data to copy
   void copy(const MPxData& aDatum) override;
 
   /// the type id of the stage data
-  static const MTypeId kTypeId;
+  AL_USDMAYA_PUBLIC static const MTypeId kTypeId;
 
   /// the type name of the stage data
-  static const MString kName;
+  AL_USDMAYA_PUBLIC static const MString kName;
 
   /// the stage passed through the DG
   UsdStageWeakPtr stage;

@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 #pragma once
+#include "AL/maya/Api.h"
 
 #include "pxr/usd/sdf/path.h"
 #include "pxr/usd/usd/prim.h"
@@ -47,13 +48,13 @@ public:
   ~DrivenTransformsData();
 
   /// \brief creates an instance of this data object
-  static void* creator();
+  AL_USDMAYA_PUBLIC static void* creator();
 
   /// the type id of the driven transform data
-  static const MTypeId kTypeId;
+  AL_USDMAYA_PUBLIC static const MTypeId kTypeId;
 
   /// the type name of the driven transform data
-  static const MString kName;
+  AL_USDMAYA_PUBLIC static const MString kName;
 
   /// the structure of driven transform
   nodes::proxy::DrivenTransforms m_drivenTransforms;

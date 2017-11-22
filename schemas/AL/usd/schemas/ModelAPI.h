@@ -131,8 +131,10 @@ public:
     // ===================================================================== //
     // --(BEGIN CUSTOM CODE)--
 
-
+    AL_USDMAYASCHEMAS_API
     void SetSelectability(const TfToken& selectability);
+
+    AL_USDMAYASCHEMAS_API
     TfToken GetSelectabilityValue() const;
 
     void SetLock(const TfToken& lock);

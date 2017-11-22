@@ -3,6 +3,7 @@ set(arDirPath AL/usdmaya)
 set(LIBRARY_NAME AL_USDMaya)
 
 list(APPEND AL_maya_headers
+        AL/maya/Api.h
         AL/maya/CodeTimings.h
         AL/maya/CommandGuiHelper.h
         AL/maya/Common.h

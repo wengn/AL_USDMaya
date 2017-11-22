@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 #pragma once
+#include "AL/maya/Api.h"
+
 #include "AL/usdmaya/Common.h"
 #include "maya/MPxDrawOverride.h"
 
@@ -51,7 +53,7 @@ public:
   /// \brief  static creator method
   /// \param  obj the handle to pass to the constructor
   /// \return the new draw override instance
-  static MHWRender::MPxDrawOverride* creator(const MObject& obj);
+  AL_USDMAYA_PUBLIC static MHWRender::MPxDrawOverride* creator(const MObject& obj);
 
   /// \brief  Called by Maya to determine if the drawable object is bounded or not.
   /// \param  objPath The path to the object being drawn
@@ -82,10 +84,10 @@ public:
       MUserData* oldData) override;
 
   /// \brief  draw classification string for this override
-  static MString kDrawDbClassification;
+  AL_USDMAYA_PUBLIC static MString kDrawDbClassification;
 
   /// \brief  draw registration id for this override
-  static MString kDrawRegistrantId;
+  AL_USDMAYA_PUBLIC static MString kDrawRegistrantId;
 
   /// \brief  The draw callback, performs the actual rendering for the draw override.
   /// \param  context the current draw context

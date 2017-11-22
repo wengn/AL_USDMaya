@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 #pragma once
+#include "AL/maya/Api.h"
+
 #include "AL/usdmaya/Common.h"
 
 #include "maya/MPxCommand.h"
@@ -42,7 +44,7 @@ private:
 };
 
 /// builds the GUI for the TfDebug notices
-extern void constructDebugCommandGuis();
+AL_USDMAYA_PUBLIC void constructDebugCommandGuis();
 
 } // cmds
 } // usdmaya

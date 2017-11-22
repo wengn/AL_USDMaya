@@ -86,6 +86,9 @@
 /// }
 /// \endcode
 //----------------------------------------------------------------------------------------------------------------------
+
+#include "AL/maya/Api.h"
+
 #include "AL/maya/FileTranslatorOptions.h"
 
 #include "maya/MPxFileTranslator.h"
@@ -101,7 +104,7 @@ namespace maya {
   public: \
     static constexpr const char* const kTranslatorName = TranslatorName; \
     static constexpr const char* const kClassName = #ClassName; \
-    static void* creator() { return new ClassName; } \
+    AL_USDMAYA_PUBLIC static void* creator() { return new ClassName; } \
   private: \
     bool haveReadMethod() const { return HaveRead; } \
     bool haveWriteMethod() const { return HaveWrite; } \
@@ -177,7 +180,7 @@ public:
 
 private:
 
-  MStatus reader(const MFileObject &file, const MString &optionsString, const FileAccessMode mode) override
+  MStatus reader(const MFileObject &file, const MString &optionsString, FileAccessMode mode) override
     {
       MStatus status = m_optionParser.parse(optionsString);
       if(MS::kSuccess == status)
@@ -188,7 +191,7 @@ private:
       return status;
     }
 
-  MStatus writer(const MFileObject &file, const MString &optionsString, const FileAccessMode mode) override
+  MStatus writer(const MFileObject &file, const MString &optionsString, FileAccessMode mode) override
     {
       MStatus status = m_optionParser.parse(optionsString);
       if(MS::kSuccess == status)

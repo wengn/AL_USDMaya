@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 #pragma once
+#include "AL/maya/Api.h"
+
 #include "AL/usdmaya/Common.h"
 // warning: This file must be included before the maya api files.
 // Maya #defines 'Bool' which causes a lot of problems with the 'Bool' typename in sdf
@@ -39,7 +41,7 @@ class ProxyShapeUI
   ~ProxyShapeUI();
 
   /// \brief  returns a new instance of this UI component
-  static void* creator();
+  AL_USDMAYA_PUBLIC static void* creator();
 
   /// \brief  legacy VP1 rendering interface
   /// \param  drawInfo  Drawing state information.

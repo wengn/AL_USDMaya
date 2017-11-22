@@ -19,12 +19,16 @@
 
 #include "AL/usdmaya/PluginRegister.h"
 
+#include "./Api.h"
+
+AL_USDMAYA_PLUGIN_PUBLIC
 MStatus initializePlugin(MObject obj)
 {
   MFnPlugin plugin(obj, "Animal Logic", "1.0", "Any");
   return AL::usdmaya::registerPlugin(plugin);
 }
 
+AL_USDMAYA_PLUGIN_PUBLIC
 MStatus uninitializePlugin(MObject obj)
 {
   MFnPlugin plugin(obj);
