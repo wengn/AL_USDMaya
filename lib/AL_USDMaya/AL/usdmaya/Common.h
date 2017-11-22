@@ -61,7 +61,7 @@ class TransformationMatrixToggleTimeSource;
 }
 
 namespace fileio {
-class AnimationTranslator;
+struct AnimationTranslator;
 class Export;
 class ExportCommand;
 class ExportTranslator;
@@ -95,10 +95,3 @@ class TransformationMatrix;
 }
 }
 }
-
-#define IGNORE_USD_WARNINGS_PUSH \
-  _Pragma ("GCC diagnostic push") \
-  _Pragma ("GCC diagnostic ignored \"-Wunused-local-typedefs\"")
-
-#define IGNORE_USD_WARNINGS_POP \
-  _Pragma ("GCC diagnostic pop")

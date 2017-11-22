@@ -18,9 +18,7 @@
 #include "AL/usdmaya/Common.h"
 #include "AL/usdmaya/fileio/translators/TranslatorBase.h"
 
-IGNORE_USD_WARNINGS_PUSH
 #include "pxr/usd/usd/stage.h"
-IGNORE_USD_WARNINGS_POP
 
 namespace AL {
 namespace usdmaya {
