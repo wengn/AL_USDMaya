@@ -2,7 +2,7 @@ if (CMAKE_VERSION VERSION_LESS 2.8.3)
 message(FATAL_ERROR "Qt 5 requires at least CMake version 2.8.3")
 endif()
 
-get_filename_component(_qt5Gui_install_prefix "$ENV{MAYA_LOCATION}" ABSOLUTE)
+get_filename_component(_qt5Gui_install_prefix "${MAYA_LOCATION}" ABSOLUTE)
 
 # For backwards compatibility only. Use Qt5Gui_VERSION instead.
 set(Qt5Gui_VERSION_STRING 5.6.1)
