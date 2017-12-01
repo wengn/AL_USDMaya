@@ -39,17 +39,6 @@ add_definitions(${_PXR_CXX_DEFINITIONS})
 find_package(Maya REQUIRED)
 include_directories(${MAYA_INCLUDE_DIRS})
 
-if(MSVC)
-    set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/qt/win")
-    find_package(Qt5 COMPONENTS Gui REQUIRED NO_SYSTEM_ENVIRONMENT_PATH)
-else()
-    if(${MAYA_API_VERSION} STRGREATER 2017)
-        find_package(Qt5Gui REQUIRED)
-    else()
-        find_package(Qt4 REQUIRED QtGui)
-    endif()
-endif()
-
 include_directories(${PXR_INCLUDE_DIRS})
 
 # FindBoost is particularly buggy, and doesn't like custom boost locations.
