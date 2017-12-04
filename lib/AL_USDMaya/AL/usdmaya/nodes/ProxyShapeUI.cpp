@@ -320,8 +320,8 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
       MString cmd = "getModifiers";
       MGlobal::executeCommand(cmd, mods);
 
-      bool shiftHeld = (mods % 2);
-      bool ctrlHeld = (mods / 4 % 2);
+      bool shiftHeld = (mods & 1);
+      bool ctrlHeld = (mods & 4);
       MGlobal::ListAdjustment mode = MGlobal::kReplaceList;
       if(shiftHeld && ctrlHeld)
         mode = MGlobal::kAddToList;
@@ -385,8 +385,8 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
     MString cmd = "getModifiers";
     MGlobal::executeCommand(cmd, mods);
     
-    bool shiftHeld = (mods % 2);
-    bool ctrlHeld = (mods / 4 % 2);
+    bool shiftHeld = (mods & 1);
+    bool ctrlHeld = (mods & 4);
     MGlobal::ListAdjustment mode = MGlobal::kReplaceList;
     if(shiftHeld && ctrlHeld)
       mode = MGlobal::kAddToList;
