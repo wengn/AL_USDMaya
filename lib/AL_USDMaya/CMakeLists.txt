@@ -211,20 +211,6 @@ if(UNIX)
     )
 endif()
 
-if(${MAYA_API_VERSION} STRGREATER 2017)
-    target_link_libraries(${LIBRARY_NAME}
-        Qt5::Gui
-    )
-else()
-    target_include_directories(${LIBRARY_NAME}
-        PUBLIC
-        $ENV{MAYA_LOCATION}/include/Qt
-    )
-    target_link_libraries(${LIBRARY_NAME}
-        ${QT_QTGUI_LIBRARY}
-    )
-endif()
-
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
 

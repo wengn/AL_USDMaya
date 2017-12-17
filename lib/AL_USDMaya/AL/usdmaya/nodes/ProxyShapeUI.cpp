@@ -14,11 +14,6 @@
 // limitations under the License.
 //
 #include "maya/MTypes.h"
-#if MAYA_API_VERSION < 201700
-#include <QtGui/QApplication>
-#else
-#include <QGuiApplication>
-#endif
 
 #include "AL/usdmaya/DebugCodes.h"
 #include "AL/usdmaya/nodes/ProxyShape.h"
@@ -321,13 +316,12 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
   {
     if(hitSelected)
     {
-#if MAYA_API_VERSION < 201700
-      Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
-#else
-      Qt::KeyboardModifiers modifiers = QGuiApplication::keyboardModifiers();
-#endif
-      bool shiftHeld = modifiers.testFlag(Qt::ShiftModifier);
-      bool ctrlHeld = modifiers.testFlag(Qt::ControlModifier);
+      int mods;
+      MString cmd = "getModifiers";
+      MGlobal::executeCommand(cmd, mods);
+
+      bool shiftHeld = (mods & 1);
+      bool ctrlHeld = (mods & 4);
       MGlobal::ListAdjustment mode = MGlobal::kReplaceList;
       if(shiftHeld && ctrlHeld)
         mode = MGlobal::kAddToList;
@@ -387,13 +381,12 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
   }
   else
   {
-#if MAYA_API_VERSION < 201700
-    Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
-#else
-    Qt::KeyboardModifiers modifiers = QGuiApplication::keyboardModifiers();
-#endif
-    bool shiftHeld = modifiers.testFlag(Qt::ShiftModifier);
-    bool ctrlHeld = modifiers.testFlag(Qt::ControlModifier);
+    int mods;
+    MString cmd = "getModifiers";
+    MGlobal::executeCommand(cmd, mods);
+    
+    bool shiftHeld = (mods & 1);
+    bool ctrlHeld = (mods & 4);
     MGlobal::ListAdjustment mode = MGlobal::kReplaceList;
     if(shiftHeld && ctrlHeld)
       mode = MGlobal::kAddToList;
