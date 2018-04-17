@@ -811,40 +811,32 @@ void ProxyShape::onEditTargetChanged(UsdNotice::StageEditTargetChanged const& no
 //----------------------------------------------------------------------------------------------------------------------
 void ProxyShape::trackEditTargetLayer(LayerManager* layerManager)
 {
-  TF_DEBUG(ALUSDMAYA_LAYERS).Msg("ProxyShape::trackEditTargetLayer");
+  TF_DEBUG(ALUSDMAYA_LAYERS).Msg("ProxyShape::trackEditTargetLayer\n");
   auto stage = getUsdStage();
+
   if(!stage)
   {
     TF_DEBUG(ALUSDMAYA_LAYERS).Msg(" - no stage\n");
     return;
   }
 
-  auto prevTargetLayer = m_prevTargetLayer;
-  m_prevTargetLayer = stage->GetEditTarget().GetLayer();
+  auto currTargetLayer = stage->GetEditTarget().GetLayer();
 
-  if(!prevTargetLayer)
-  {
-    TF_DEBUG(ALUSDMAYA_LAYERS).Msg(" - no prev target layer\n");
-    return;
-  }
+  TF_DEBUG(ALUSDMAYA_LAYERS).Msg(" - curr target layer: %s\n", currTargetLayer->GetIdentifier().c_str());
 
-  TF_DEBUG(ALUSDMAYA_LAYERS).Msg(" - prev target layer: %s\n",
-      prevTargetLayer->GetIdentifier().c_str());
-  if(prevTargetLayer->IsDirty())
+  if(!layerManager)
   {
+    layerManager = LayerManager::findOrCreateManager();
+    // findOrCreateManager SHOULD always return a result, but we check anyway,
+    // to avoid any potential crash...
     if(!layerManager)
     {
-      layerManager = LayerManager::findOrCreateManager();
-      // findOrCreateManager SHOULD always return a result, but we check anyway,
-      // to avoid any potential crash...
-      if(!layerManager)
-      {
-        std::cerr << "Error creating / finding a layerManager node!" << std::endl;
-        return;
-      }
+      std::cerr << "Error creating / finding a layerManager node!" << std::endl;
+      return;
     }
-    layerManager->addLayer(prevTargetLayer);
   }
+  layerManager->addLayer(currTargetLayer);
+
   triggerEvent("EditTargetChanged");
 }
 

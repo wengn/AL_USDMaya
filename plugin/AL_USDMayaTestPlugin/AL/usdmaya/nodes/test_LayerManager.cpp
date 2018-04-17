@@ -194,9 +194,13 @@ TEST(LayerManager, addRemoveLayer)
   ASSERT_TRUE(manager);
 
   auto anonLayer = SdfLayer::CreateAnonymous("myAnonLayer");
+
   auto realLayer = SdfLayer::New(
       SdfFileFormat::FindById(UsdUsdaFileFormatTokens->Id),
       "/my/silly/layer.usda");
+
+  anonLayer->SetComment("SetLayerAsDirty");
+  realLayer->SetComment("SetLayerAsDirty");
   MStringArray layerIds;
 
   ASSERT_FALSE(manager->findLayer(anonLayer->GetIdentifier()));
@@ -520,13 +524,6 @@ TEST(LayerManager, simpleSaveRestore)
     auto fooLayerAttr = root->GetAttributeAtPath(fooPath);
     ASSERT_TRUE(fooLayerAttr);
     EXPECT_EQ(fooLayerAttr->GetDefaultValue(), fooValue);
-
-    // There shouldn't be a layer manager
-    EXPECT_TRUE(AL::usdmaya::nodes::LayerManager::findNode().isNull());
-    MStringArray result;
-    MGlobal::executeCommand(MString("ls -type " ) + AL::usdmaya::nodes::LayerManager::kTypeName,
-                            result);
-    EXPECT_EQ(result.length(), 0);
   }
 
   {
@@ -561,4 +558,54 @@ TEST(LayerManager, simpleSaveRestore)
 //    EXPECT_EQ(MStatus(MS::kSuccess), MFileIO::reference(temp_ma_path));
 //    confirmLayerEditsPresent();
 //  }
+}
+
+//Test that we only get the 'dirty' layers from the Manager
+TEST(LayerManager, onlyReturnDirtyLayers)
+{
+  constexpr auto LAYER_CONTENTS = R"ESC(#usda 1.0
+def Scope "root"
+{
+
+}
+
+)ESC";
+
+  // Make a manager, and add a layer to be managed by it
+  auto* manager = AL::usdmaya::nodes::LayerManager::findOrCreateManager();
+  ASSERT_TRUE(manager);
+
+  SdfLayerRefPtr layerRef = SdfLayer::New(SdfFileFormat::FindById(UsdUsdaFileFormatTokens->Id), "test1");
+  SdfLayerHandle layerHandle = layerRef; //
+
+  auto rootLayer = SdfLayer::New(SdfFileFormat::FindById(UsdUsdaFileFormatTokens->Id), "/my/root/layer.usda");
+  rootLayer->ImportFromString(LAYER_CONTENTS);
+
+  const char* sublayerPath = "/tmp/AL_USDMayaTests_LayerManager_onlyReturnDirtyLayers.usda";
+  {
+    auto subLayer = SdfLayer::New(SdfFileFormat::FindById(UsdUsdaFileFormatTokens->Id), sublayerPath);
+    subLayer->ImportFromString(LAYER_CONTENTS);
+    subLayer->Save();
+  }
+
+  auto subLayer = SdfLayer::New(SdfFileFormat::FindById(UsdUsdaFileFormatTokens->Id), sublayerPath);
+
+  UsdStageRefPtr stage = UsdStage::Open("/my/root/layer.usda");
+  std::vector<std::string> paths = {sublayerPath};
+
+  // Add the sublayer to track
+  manager->addLayer(subLayer);
+  stage->GetRootLayer()->SetSubLayerPaths(paths);
+
+  // Set the edit target to the sublayer
+  stage->SetEditTarget(subLayer);
+  SdfLayerHandle editedSubLayer = manager->findLayer("/my/root/sublayer.usda");
+
+  ASSERT_FALSE(editedSubLayer);
+
+  // Change the edit target, to mark it as 'dirty'
+  stage->DefinePrim(SdfPath("/test"));
+
+  SdfLayerHandle dirtyLayer = manager->findLayer(sublayerPath);
+  ASSERT_TRUE(dirtyLayer);
 }

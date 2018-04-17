@@ -79,7 +79,7 @@ TEST(LayerCommands, layerCreateLayerTests)
     // Check that we can refind the layer
     AL::usdmaya::nodes::LayerManager* layerManager = AL::usdmaya::nodes::LayerManager::findManager();
     EXPECT_TRUE(layerManager);
-    SdfLayerHandle refoundExpectedLayer = layerManager->findLayer(expectedLayer->GetIdentifier());
+    SdfLayerHandle refoundExpectedLayer = layerManager->findLayer(expectedLayer->GetIdentifier(), false);
     EXPECT_TRUE(refoundExpectedLayer);
     EXPECT_EQ(refoundExpectedLayer, expectedLayer);
   }

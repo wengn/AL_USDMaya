@@ -63,7 +63,7 @@ public:
 
   /// \brief  Find the layer in the set of layers managed by this node, by identifier
   /// \return The found layer handle in the layer list managed by this node (invalid if not found)
-  SdfLayerHandle findLayer(std::string identifier) const;
+  SdfLayerHandle findLayer(std::string identifier, bool dirtyOnly=true) const;
 
   LayerToIdsMap::size_type size() const { return m_layerToIds.size(); }
 
@@ -148,7 +148,7 @@ public:
 
   /// \brief  Find the layer in the list of layers managed by this node, by identifier
   /// \return The found layer handle in the layer list managed by this node (invalid if not found)
-  SdfLayerHandle findLayer(std::string identifier);
+  SdfLayerHandle findLayer(std::string identifier, bool dirtyOnly=true);
 
   /// \brief  Store a list of the managed layers' identifiers in the given MStringArray
   /// \param  outputNames The array to hold the identifier names; will be cleared before being filled.
