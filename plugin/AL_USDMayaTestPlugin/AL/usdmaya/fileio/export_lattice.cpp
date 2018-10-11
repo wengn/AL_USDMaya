@@ -29,24 +29,27 @@ TEST(export_ffd, nonanimated)
   MFileIO::newFile(true);
   MGlobal::executeCommand(g_ffd);
 
-  const char* command =
+  const std::string temp_path = buildTempPath("AL_USDMayaTests_ffd.usda");
+
+  MString command =
   "select -r \"pCylinder1\";"
   "file -force -options "
   "\"Dynamic_Attributes=1;"
   "Meshes=1;"
   "Nurbs_Curves=1;"
   "Duplicate_Instances=1;"
-  "Use_Animal_Schema=1;"
   "Merge_Transforms=1;"
   "Animation=1;"
   "Use_Timeline_Range=0;"
   "Frame_Min=1;"
   "Frame_Max=50;"
-  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -es \"/tmp/AL_USDMayaTests_ffd.usda\";";
+  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -es \"";
+  command += temp_path.c_str();
+  command += "\";";
 
   MGlobal::executeCommand(command);
 
-  UsdStageRefPtr stage = UsdStage::Open("/tmp/AL_USDMayaTests_ffd.usda");
+  UsdStageRefPtr stage = UsdStage::Open(temp_path);
   EXPECT_TRUE(stage);
 
   {
@@ -64,24 +67,27 @@ TEST(export_ffd, animated)
   MFileIO::newFile(true);
   MGlobal::executeCommand(g_ffd_animated);
 
-  const char* command =
+  const std::string temp_path = buildTempPath("AL_USDMayaTests_ffd_animated.usda");
+
+  MString command =
   "select -r \"pCylinder1\";"
   "file -force -options "
   "\"Dynamic_Attributes=1;"
   "Meshes=1;"
   "Nurbs_Curves=1;"
   "Duplicate_Instances=1;"
-  "Use_Animal_Schema=1;"
   "Merge_Transforms=1;"
   "Animation=1;"
   "Use_Timeline_Range=0;"
   "Frame_Min=1;"
   "Frame_Max=50;"
-  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -es \"/tmp/AL_USDMayaTests_ffd_animated.usda\";";
+  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -es \"";
+  command += temp_path.c_str();
+  command += "\";";
 
   MGlobal::executeCommand(command);
 
-  UsdStageRefPtr stage = UsdStage::Open("/tmp/AL_USDMayaTests_ffd_animated.usda");
+  UsdStageRefPtr stage = UsdStage::Open(temp_path);
   EXPECT_TRUE(stage);
 
   {

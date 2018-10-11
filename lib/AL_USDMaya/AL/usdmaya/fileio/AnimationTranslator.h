@@ -72,8 +72,10 @@ typedef std::map<MPlug, ScaledPair, compare_MPlug> PlugAttrScaledVector;
 /// \brief  A utility class to help with exporting animated plugs from maya
 /// \ingroup   fileio
 //----------------------------------------------------------------------------------------------------------------------
-struct AnimationTranslator
+class AnimationTranslator
 {
+public:
+
   /// \brief  returns true if the attribute is animated
   /// \param  node the node which contains the attribute to test
   /// \param  attr the attribute handle
@@ -84,7 +86,6 @@ struct AnimationTranslator
   /// or expression, or source attribute's full-name match a certain string.
   /// But in reality the control network might be really complicated and heavily customized thus it might go far beyond the
   /// situation we can cover here.
-  AL_USDMAYA_PUBLIC
   static bool isAnimated(const MObject& node, const MObject& attr, const bool assumeExpressionIsAnimated = true)
     { return isAnimated(MPlug(node, attr), assumeExpressionIsAnimated); }
 

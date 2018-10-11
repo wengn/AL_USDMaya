@@ -41,24 +41,29 @@ TEST(export_blendshape, non_animated_mesh)
   MFileIO::newFile(true);
   MGlobal::executeCommand(g_nonAnimatedMesh);
 
-  const char* command =
+  const std::string temp_path = buildTempPath("AL_USDMayaTests_blendshape.usda");
+
+  MString command =
   "select -r \"baseCube\";"
   "file -force -options "
   "\"Dynamic_Attributes=1;"
   "Meshes=1;"
   "Nurbs_Curves=1;"
   "Duplicate_Instances=1;"
-  "Use_Animal_Schema=1;"
   "Merge_Transforms=1;"
   "Animation=1;"
   "Use_Timeline_Range=0;"
   "Frame_Min=1;"
   "Frame_Max=50;"
-  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -es \"/tmp/AL_USDMayaTests_blendshape.usda\";";
+  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -es \"";
+
+  command += temp_path.c_str();
+  command += "\";";
+
 
   MGlobal::executeCommand(command);
 
-  UsdStageRefPtr stage = UsdStage::Open("/tmp/AL_USDMayaTests_blendshape.usda");
+  UsdStageRefPtr stage = UsdStage::Open(temp_path);
   EXPECT_TRUE(stage);
 
   UsdPrim prim = stage->GetPrimAtPath(SdfPath("/baseCube"));
@@ -74,27 +79,31 @@ TEST(export_blendshape, animated_mesh)
   MFileIO::newFile(true);
   MGlobal::executeCommand(g_animatedMesh);
 
-  const char* command =
+  const std::string temp_path = buildTempPath("AL_USDMayaTests_anim_blendshape.usda");
+
+  MString command =
   "select -r \"baseCube\";"
   "file -force -options "
   "\"Dynamic_Attributes=1;"
   "Meshes=1;"
   "Nurbs_Curves=1;"
   "Duplicate_Instances=1;"
-  "Use_Animal_Schema=1;"
   "Merge_Transforms=1;"
   "Animation=1;"
   "Use_Timeline_Range=0;"
   "Frame_Min=1;"
   "Frame_Max=50;"
-  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -es \"/tmp/AL_USDMayaTests_anim_blendshape.usda\";";
+  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -es \"";
+  command += temp_path.c_str();
+  command += "\";";
 
   MGlobal::executeCommand(command);
 
-  UsdStageRefPtr stage = UsdStage::Open("/tmp/AL_USDMayaTests_anim_blendshape.usda");
+  UsdStageRefPtr stage = UsdStage::Open(temp_path);
   EXPECT_TRUE(stage);
 
   UsdPrim prim = stage->GetPrimAtPath(SdfPath("/baseCube"));
+  ASSERT_TRUE(prim.IsA<UsdGeomMesh>());
   UsdGeomMesh mesh(prim);
 
   UsdAttribute pointsAttr = mesh.GetPointsAttr();

@@ -34,7 +34,7 @@ TEST(ProxyShapeImport, populationMaskInclude)
 {
   auto  constructTestUSDFile = [] ()
   {
-    const std::string temp_bootstrap_path = "/tmp/AL_USDMayaTests_populationMaskInclude.usda";
+    const std::string temp_bootstrap_path = buildTempPath("AL_USDMayaTests_populationMaskInclude.usda");
 
     UsdStageRefPtr stage = UsdStage::CreateInMemory();
     UsdGeomXform root = UsdGeomXform::Define(stage, SdfPath("/root"));
@@ -136,7 +136,7 @@ TEST(ProxyShapeImport, populationMaskInclude)
 TEST(ProxyShapeImport, lockMetaData)
 {
   MFileIO::newFile(true);
-  const std::string temp_bootstrap_path = "/tmp/AL___USDMayaTests_lockMetaData.usda";
+  const std::string temp_bootstrap_path = buildTempPath("AL_USDMayaTests_lockMetaData.usda");
   auto  constructTestUSDFile = [temp_bootstrap_path] ()
   {
 
@@ -151,14 +151,6 @@ TEST(ProxyShapeImport, lockMetaData)
 
     stage->Export(temp_bootstrap_path, false);
     return MString(temp_bootstrap_path.c_str());
-  };
-
-  auto constructLockMetaDataTestCommand = [] (const MString& bootstrap_path, const MString& mask)
-  {
-    MString cmd = "AL_usdmaya_ProxyShapeImport -file \"";
-    cmd += bootstrap_path;
-    cmd += "\"";
-    return cmd;
   };
 
   constructTestUSDFile();
@@ -238,7 +230,7 @@ over "root" {
     return stage;
   };
 
-  const std::string temp_path = "/tmp/AL_USDMayaTests_ImportCommands_sessionLayer.usda";
+  const std::string temp_path = buildTempPath("AL_USDMayaTests_ImportCommands_sessionLayer.usda");
 
   // generate our usda
   {

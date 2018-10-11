@@ -31,22 +31,26 @@ TEST(export_import_instancing, usd_instancing_roundtrip)
 {
   MFileIO::newFile(true);
   MGlobal::executeCommand(generateInstances);
-  const char* command =
+
+  const std::string temp_path = buildTempPath("AL_USDMayaTests_instances.usda");
+
+  MString command =
   "file -force -options "
   "\"Dynamic_Attributes=1;"
   "Meshes=1;"
   "Nurbs_Curves=1;"
   "Duplicate_Instances=0;"
-  "Use_Animal_Schema=1;"
   "Merge_Transforms=0;"
   "Animation=1;"
   "Use_Timeline_Range=0;"
   "Frame_Min=1;"
   "Frame_Max=50;"
-  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -ea \"/tmp/AL_USDMayaTests_instances.usda\";";
+  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -ea \"";
+  command += temp_path.c_str();
+  command += "\";";
   MGlobal::executeCommand(command);
 
-  UsdStageRefPtr stage = UsdStage::Open("/tmp/AL_USDMayaTests_instances.usda");
+  UsdStageRefPtr stage = UsdStage::Open(temp_path);
   EXPECT_TRUE(stage);
   UsdPrim prim = stage->GetPrimAtPath(SdfPath("/pSphere1"));
   EXPECT_TRUE(prim.IsValid() && prim.IsInstance() && prim.IsA<UsdGeomXform>());
@@ -67,8 +71,8 @@ TEST(export_import_instancing, usd_instancing_roundtrip)
 
   UsdPrim masterPrim = prim.GetMaster();
   EXPECT_TRUE(masterPrim.IsValid());
-  masterPrim = masterPrim.GetChild(TfToken("pSphereShape1"));
-  EXPECT_TRUE(masterPrim.IsValid() && masterPrim.IsA<UsdGeomMesh>());
+  UsdPrim masterPrimChild = masterPrim.GetChild(TfToken("pSphereShape1"));
+  EXPECT_TRUE(masterPrimChild.IsValid() && masterPrimChild.IsA<UsdGeomMesh>());
 
   prim = stage->GetPrimAtPath(SdfPath("/parentTransform/nurbsCircle2"));
   EXPECT_TRUE(prim.IsValid() && prim.IsInstance() && prim.IsA<UsdGeomXform>());
@@ -79,7 +83,9 @@ TEST(export_import_instancing, usd_instancing_roundtrip)
   MFileIO::newFile(true);
   command =
   "file -type \"AL usdmaya import\""
-  "-i \"/tmp/AL_USDMayaTests_instances.usda\"";
+  "-i \"";
+  command += temp_path.c_str();
+  command += "\"";
   MGlobal::executeCommand(command);
   MSelectionList sl;
   sl.add("pSphereShape1");
@@ -90,7 +96,8 @@ TEST(export_import_instancing, usd_instancing_roundtrip)
   EXPECT_TRUE(status == MStatus::kSuccess && dag.parentCount() == 3);
   MDagPathArray allPaths;
   status = dag.getAllPaths(allPaths);
-  EXPECT_TRUE(status == MStatus::kSuccess && allPaths.length() == 3);
+  EXPECT_TRUE(status == MStatus::kSuccess);
+  ASSERT_TRUE(allPaths.length() == 3);
   EXPECT_EQ(allPaths[0].fullPathName(), "|pSphere1|pSphereShape1");
   EXPECT_EQ(allPaths[1].fullPathName(), "|pSphere2|pSphereShape1");
   EXPECT_EQ(allPaths[2].fullPathName(), "|pSphere3|pSphereShape1");
@@ -109,7 +116,8 @@ TEST(export_import_instancing, usd_instancing_roundtrip)
   status = dag.setObject(path);
   EXPECT_TRUE(status == MStatus::kSuccess && dag.parentCount() == 2);
   status = dag.getAllPaths(allPaths);
-  EXPECT_TRUE(status == MStatus::kSuccess && allPaths.length() == 2);
+  EXPECT_TRUE(status == MStatus::kSuccess);
+  ASSERT_TRUE(allPaths.length() == 2);
   EXPECT_EQ(allPaths[0].fullPathName(), "|nurbsCircle1|nurbsCircleShape1");
   EXPECT_EQ(allPaths[1].fullPathName(), "|parentTransform|nurbsCircle2|nurbsCircleShape1");
 }

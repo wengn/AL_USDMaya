@@ -1,20 +1,16 @@
 import unittest
 import tempfile
-import maya.standalone
 import maya.cmds as mc
 
-from pxr import Tf, Usd
+from pxr import Tf, Usd, UsdGeom, Gf
+import translatortestutils
 
-class testTranslator(unittest.TestCase):
+class TestTranslator(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        maya.standalone.initialize()
+        mc.file(f=True, new=True)
         mc.loadPlugin('AL_USDMayaPlugin')
             
-    @classmethod
-    def tearDownClass(cls):
-        maya.standalone.uninitialize()
-    
     @classmethod
     def tearDown(cls):
         mc.file(f=True, new=True)
@@ -157,7 +153,7 @@ class testTranslator(unittest.TestCase):
         Test that by default that the the mesh is imported
         """
         # setup scene with sphere
-        self._importStageWithSphere()
+        translatortestutils.importStageWithSphere()
               
         # force the import
         mc.AL_usdmaya_TranslatePrim(ip="/pSphere1", fi=True, proxy="AL_usdmaya_Proxy")
@@ -209,7 +205,8 @@ class testTranslator(unittest.TestCase):
         """
                
         # force the import
-        stage = self._importStageWithSphere()
+        d = translatortestutils.importStageWithSphere()
+        stage = d.stage
         mc.AL_usdmaya_TranslatePrim(ip="/pSphere1", fi=True, proxy="AL_usdmaya_Proxy")
       
         stage.SetEditTarget(stage.GetSessionLayer())
@@ -230,16 +227,13 @@ class testTranslator(unittest.TestCase):
         self.assertTrue(sessionSphere.IsValid())
         self.assertTrue(sessionSphere.GetAttribute("faceVertexCounts"))
 
-## Commented since there is a crash when out of a variant that contains a mesh into a variant that contains a different mesh.
-## Possibly because we are changing the Session Layer in the preTearDown of the Mesh.cpp while in a variantSetChanged callback.
     def testMeshTranslator_variantswitch(self):
         mc.AL_usdmaya_ProxyShapeImport(file='./testMeshVariants.usda')
         self.assertTrue(Tf.Type.Unknown != Tf.Type.FindByName('AL::usdmaya::fileio::translators::Mesh'))
-    
         # test initial state has no meshes
         self.assertEqual(len(mc.ls(type='mesh')), 0)
     
-        stage = self._getStage()
+        stage = translatortestutils.getStage()
         stage.SetEditTarget(stage.GetSessionLayer())
          
         variantPrim = stage.GetPrimAtPath("/TestVariantSwitch")
@@ -269,7 +263,6 @@ class testTranslator(unittest.TestCase):
         mc.AL_usdmaya_TranslatePrim(ip="/TestVariantSwitch/MeshB", fi=True, proxy="AL_usdmaya_Proxy")
         mc.AL_usdmaya_TranslatePrim(ip="/TestVariantSwitch/MeshA", fi=True, proxy="AL_usdmaya_Proxy")
  
-      
         self.assertEqual(len(mc.ls('MeshA')), 1)
         self.assertEqual(len(mc.ls('MeshB')), 1)
         self.assertEqual(len(mc.ls(type='mesh')), 2)
@@ -288,7 +281,7 @@ class testTranslator(unittest.TestCase):
         """
         Test that by default that the the mesh isn't imported
         """
-        stage = self._importStageWithNurbsCircle()
+        stage = translatortestutils.importStageWithNurbsCircle()
         self.assertEqual(len(mc.ls('nurbsCircle1')), 0)
         self.assertEqual(len(mc.ls(type='nurbsCurve')), 0)
 
@@ -297,7 +290,7 @@ class testTranslator(unittest.TestCase):
         Test that by default that the the mesh is imported
         """
         # setup scene with sphere
-        self._importStageWithNurbsCircle()
+        translatortestutils.importStageWithNurbsCircle()
 
         # force the import
         mc.AL_usdmaya_TranslatePrim(ip="/nurbsCircle1", fi=True, proxy="AL_usdmaya_Proxy")
@@ -345,7 +338,7 @@ class testTranslator(unittest.TestCase):
         """
 
         # force the import
-        stage = self._importStageWithNurbsCircle()
+        stage = translatortestutils.importStageWithNurbsCircle()
         mc.AL_usdmaya_TranslatePrim(ip="/nurbsCircle1", fi=True, proxy="AL_usdmaya_Proxy")
 
         stage.SetEditTarget(stage.GetSessionLayer())
@@ -368,46 +361,167 @@ class testTranslator(unittest.TestCase):
         self.assertEqual(len(cvcAttr.Get()), 1)
         self.assertEqual(cvcAttr.Get()[0], 10)
 
+    def testMeshTranslator_multipleTranslations(self):
+        path = tempfile.NamedTemporaryFile(suffix=".usda", prefix="test_MeshTranslator_multipleTranslations_", delete=True)
 
-# Utilities
-    def _getStage(self):
-        from AL import usdmaya
-        stageCache = usdmaya.StageCache.Get()
-        stage = stageCache.GetAllStages()[0]
-        return stage
+        d = translatortestutils.importStageWithSphere('AL_usdmaya_Proxy')
+        sessionLayer = d.stage.GetSessionLayer()
+        d.stage.SetEditTarget(sessionLayer)
+
+        spherePrimPath = "/"+d.sphereXformName
+        offsetAmount = Gf.Vec3f(0,0.25,0)
+        
+        vertPoint = '{}.vtx[0]'.format(d.sphereXformName)
+        
+        spherePrimMesh = UsdGeom.Mesh.Get(d.stage, spherePrimPath)  
+
+        # Test import,modify,teardown a bunch of times
+        for i in xrange(3):
+            # Determine expected result
+            expectedPoint = spherePrimMesh.GetPointsAttr().Get()[0] + offsetAmount
+
+            # Translate the prim into maya for editing
+            mc.AL_usdmaya_TranslatePrim(forceImport=True, importPaths=spherePrimPath, proxy='AL_usdmaya_Proxy')
+
+            # Move the point
+            items = ['pSphere1.vtx[0]']
+            mc.move(offsetAmount[0], offsetAmount[1], offsetAmount[2], items, relative=True) # just affect the Y
+            mc.AL_usdmaya_TranslatePrim(teardownPaths=spherePrimPath, proxy='AL_usdmaya_Proxy')
+ 
+            actualPoint = spherePrimMesh.GetPointsAttr().Get()[0]
+            
+            # Confirm that the edit has come back as expected
+            self.assertAlmostEqual(actualPoint[0], expectedPoint[0])
+            self.assertAlmostEqual(actualPoint[1], expectedPoint[1])
+            self.assertAlmostEqual(actualPoint[2], expectedPoint[2])
+            
+    def testFrameRange_TranslatorExists(self):
+        """
+        Test that the Maya frame range Translator exists
+        """
+        self.assertTrue(Tf.Type.Unknown != Tf.Type.FindByName('AL::usdmaya::fileio::translators::FrameRange'))
+        
+    def testFrameRange_PluginIsFunctional(self):
+        mc.AL_usdmaya_ProxyShapeImport(file='./testFrameRange.usda')
+        self.assertTrue(Tf.Type.Unknown != Tf.Type.FindByName('AL::usdmaya::fileio::translators::FrameRange'))
+        
+        currentFrame = mc.currentTime(q=True)
+        
+        startAnimFrame = mc.playbackOptions(q=True, animationStartTime=True)
+        endAnimFrame = mc.playbackOptions(q=True, animationEndTime=True)
+        
+        startVisibleFrame = mc.playbackOptions(q=True, minTime=True)
+        endVisibleFrame = mc.playbackOptions(q=True, maxTime=True)
+        
+        
+        self.assertEqual(currentFrame, 1100)
+        
+        self.assertEqual(startAnimFrame, 1072)
+        self.assertEqual(endAnimFrame, 1290)
+        
+        self.assertEqual(startVisibleFrame, 1080)
+        self.assertEqual(endVisibleFrame, 1200)
+        
+    def testFrameRange_FallbackIsFunctional(self):
+        # If no frame range data is authored in ALFrameRange prim, we use startTimeCode & endTimeCode from usdStage:
+        mc.AL_usdmaya_ProxyShapeImport(file='./testFrameRangeFallback.usda')
+        self.assertTrue(Tf.Type.Unknown != Tf.Type.FindByName('AL::usdmaya::fileio::translators::FrameRange'))
+        
+        currentFrame = mc.currentTime(q=True)
+        
+        startAnimFrame = mc.playbackOptions(q=True, animationStartTime=True)
+        endAnimFrame = mc.playbackOptions(q=True, animationEndTime=True)
+        
+        startVisibleFrame = mc.playbackOptions(q=True, minTime=True)
+        endVisibleFrame = mc.playbackOptions(q=True, maxTime=True)
+        
+        self.assertEqual(currentFrame, 1072)
+        
+        self.assertEqual(startAnimFrame, 1072)
+        self.assertEqual(endAnimFrame, 1290)
+        
+        self.assertEqual(startVisibleFrame, 1072)
+        self.assertEqual(endVisibleFrame, 1290)
+        
+    def testFrameRange_OnlyCurrentFrame(self):
+        startAnimFrameOld = mc.playbackOptions(q=True, animationStartTime=True)        
+        endAnimFrameOld = mc.playbackOptions(q=True, animationEndTime=True)
+        
+        startVisibleFrameOld = mc.playbackOptions(q=True, minTime=True)
+        endVisibleFrameOld = mc.playbackOptions(q=True, maxTime=True)
+        
+        # If frame range data is authored neither in ALFrameRange prim nor usdStage, no range action should be taken:
+        mc.AL_usdmaya_ProxyShapeImport(file='./testFrameRangeCurrentFrame.usda')
+        self.assertTrue(Tf.Type.Unknown != Tf.Type.FindByName('AL::usdmaya::fileio::translators::FrameRange'))
+        
+        currentFrame = mc.currentTime(q=True)
+        
+        startAnimFrame = mc.playbackOptions(q=True, animationStartTime=True)
+        endAnimFrame = mc.playbackOptions(q=True, animationEndTime=True)
+        
+        startVisibleFrame = mc.playbackOptions(q=True, minTime=True)
+        endVisibleFrame = mc.playbackOptions(q=True, maxTime=True)
+        
+        self.assertEqual(currentFrame, 10)
+        
+        self.assertEqual(startAnimFrame, startAnimFrameOld)
+        self.assertEqual(endAnimFrame, endAnimFrameOld)
+        
+        self.assertEqual(startVisibleFrame, startVisibleFrameOld)
+        self.assertEqual(endVisibleFrame, endVisibleFrameOld)
+        
+    def testFrameRange_NoImpactIfNoFrameRange(self):
+        currentFrameOld = mc.currentTime(q=True)
+        
+        startAnimFrameOld = mc.playbackOptions(q=True, animationStartTime=True)        
+        endAnimFrameOld = mc.playbackOptions(q=True, animationEndTime=True)
+        
+        startVisibleFrameOld = mc.playbackOptions(q=True, minTime=True)
+        endVisibleFrameOld = mc.playbackOptions(q=True, maxTime=True)
+        
+        # If frame range data is authored neither in ALFrameRange prim nor usdStage, no range action should be taken:
+        mc.AL_usdmaya_ProxyShapeImport(file='./testFrameRangeNoImpact.usda')
+        self.assertTrue(Tf.Type.Unknown != Tf.Type.FindByName('AL::usdmaya::fileio::translators::FrameRange'))
+        
+        currentFrame = mc.currentTime(q=True)
+        
+        startAnimFrame = mc.playbackOptions(q=True, animationStartTime=True)
+        endAnimFrame = mc.playbackOptions(q=True, animationEndTime=True)
+        
+        startVisibleFrame = mc.playbackOptions(q=True, minTime=True)
+        endVisibleFrame = mc.playbackOptions(q=True, maxTime=True)
+        
+        self.assertEqual(currentFrame, currentFrameOld)
+        
+        self.assertEqual(startAnimFrame, startAnimFrameOld)
+        self.assertEqual(endAnimFrame, endAnimFrameOld)
+        
+        self.assertEqual(startVisibleFrame, startVisibleFrameOld)
+        self.assertEqual(endVisibleFrame, endVisibleFrameOld)
     
-    def _importStageWithSphere(self):
-        """
-        Creates Scene
+    # --------------------------------------------------------------------------------------------------    
+    def _performDisablePrimTest(self, usdFilePath):
+        shapes = mc.AL_usdmaya_ProxyShapeImport(file=usdFilePath)
+        self.assertTrue(Tf.Type.Unknown != Tf.Type.FindByName('AL::usdmaya::fileio::translators::FrameRange'))
+        
+        shotPrimMayaNodeName = 'shot_name'
+        self.assertTrue(mc.objExists(shotPrimMayaNodeName))
+        configPrimPath = '/shot_name/config'
+        cmds.AL_usdmaya_ActivatePrim(shapes[0], pp=configPrimPath, a=False)
+        
+        # Assert not clearing:
+        self.assertTrue(mc.objExists(shotPrimMayaNodeName))
+        
+    def testTranslatedPrimDeactiveClearIssue(self):
+        # When a prim is within a translated hierarchy, deactivating it's parent should not clear children of proxyShapeTransform.
+        self._performDisablePrimTest('./testTranslatedPrimDisableClearIssue.usda')
+        
+    def testTranslatedPrimDeactiveCrashIssue(self):
+        # When a prim is within a translated hierarchy, deactivating it's parent should not crash Maya or clear the children of proxyShapeTransform.
+        self._performDisablePrimTest('./testTranslatedPrimDisableCrashIssue.usda')
+        
+        
+tests = unittest.TestLoader().loadTestsFromTestCase(TestTranslator)
+result = unittest.TextTestRunner(verbosity=2).run(tests)
 
-        #usda1.0
-        def Mesh "pSphere1"()
-        {
-        }
-        """
-
-        # Create sphere in Maya and export a .usda file
-        mc.polySphere()
-        mc.select("pSphere1")
-        tempFile = tempfile.NamedTemporaryFile(suffix=".usda", prefix="test_MeshTranslator_", delete=True)
-        mc.file(tempFile.name, exportSelected=True, force=True, type="AL usdmaya export")
-         
-        # clear scene
-        mc.file(f=True, new=True)
-        mc.AL_usdmaya_ProxyShapeImport(file=tempFile.name)
-        return self._getStage()
-
-    def _importStageWithNurbsCircle(self):
-        # Create nurbs circle in Maya and export a .usda file
-        mc.CreateNURBSCircle()
-        mc.select("nurbsCircle1")
-        tempFile = tempfile.NamedTemporaryFile(suffix=".usda", prefix="test_NurbsCurveTranslator_", delete=True)
-        mc.file(tempFile.name, exportSelected=True, force=True, type="AL usdmaya export")
-
-        # clear scene
-        mc.file(f=True, new=True)
-        mc.AL_usdmaya_ProxyShapeImport(file=tempFile.name)
-        return self._getStage()
-
-if __name__ == '__main__':
-    unittest.main()
+mc.quit(exitCode=(not result.wasSuccessful()))

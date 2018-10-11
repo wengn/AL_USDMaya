@@ -67,6 +67,7 @@ class "ALModelAPI"
 doc = "Data used to import a maya reference."
   inherits = </ModelAPI>
   customData = {
+        string apiSchemaType = "nonApplied"
         string className = "ModelAPI"
         string fileName = "ModelAPI"
         string extraIncludes = """
@@ -95,6 +96,34 @@ class ALMayaReference "ALMayaReference"(
   string mayaNamespace (
     doc = "Namespace which the maya reference will be imported under."
   )
+}
+
+###################################################################################################
+
+class ALFrameRange "ALFrameRange"(
+  doc = "Maya Frame Range"
+  inherits = </Typed>
+  customData = {
+        string className = "FrameRange"
+        string fileName = "FrameRange"
+      }
+)
+{
+    double animationStartFrame(
+      doc = "The start animation frame in Maya."
+    )
+    double startFrame(
+      doc = "The min frame in Maya."
+    )
+    double endFrame(
+      doc = "The max frame in Maya."
+    )
+    double animationEndFrame(
+      doc = "The end animation frame in Maya."
+    )
+    double currentFrame(
+      doc = "The current frame in Maya."
+    )
 }
 
 ###################################################################################################

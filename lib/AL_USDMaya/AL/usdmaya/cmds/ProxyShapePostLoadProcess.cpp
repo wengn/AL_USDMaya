@@ -187,6 +187,18 @@ void huntForNativeNodes(
 } // anon
 
 //----------------------------------------------------------------------------------------------------------------------
+static bool parentNodeIsUnmerged(const UsdPrim & prim)
+{
+  bool parentUnmerged = false;
+  TfToken val;
+  if(prim.GetParent().IsValid() && prim.GetParent().GetMetadata(AL::usdmaya::Metadata::mergedTransform, &val))
+  {
+    parentUnmerged = (val == AL::usdmaya::Metadata::unmerged);
+  }
+  return parentUnmerged;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 fileio::ImporterParams ProxyShapePostLoadProcess::m_params;
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -215,9 +227,17 @@ void ProxyShapePostLoadProcess::createTranformChainsForSchemaPrims(
         SdfPath path = usdPrim.GetPath();
         TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ProxyShapePostLoadProcess::createTranformChainsForSchemaPrims checking %s\n", path.GetText());
         MObject newpath = MObject::kNullObj;
+        bool parentUnmerged = parentNodeIsUnmerged(usdPrim);
         if(schemaPrimUtils.needsTransformParent(usdPrim))
         {
-          newpath = ptrNode->makeUsdTransformChain(usdPrim, modifier, nodes::ProxyShape::kRequired, &modifier2);
+          if(!parentUnmerged)
+          {
+            newpath = ptrNode->makeUsdTransformChain(usdPrim, modifier, nodes::ProxyShape::kRequired, &modifier2);
+          }
+          else
+          {
+            newpath = ptrNode->makeUsdTransformChain(usdPrim.GetParent(), modifier, nodes::ProxyShape::kRequired, &modifier2);
+          }
         }
         objsToCreate.push_back(std::make_pair(newpath, usdPrim));
       }
@@ -252,13 +272,27 @@ void ProxyShapePostLoadProcess::createSchemaPrims(
     fileio::translators::TranslatorContextPtr context = proxy->context();
     fileio::translators::TranslatorManufacture& translatorManufacture = proxy->translatorManufacture();
 
+    if(context->getForceDefaultRead())
+    {
+      TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ProxyShapePostLoadProcess::createSchemaPrims,"
+                                          " will read default values\n");
+    }
+
     auto it = objsToCreate.begin();
     const auto end = objsToCreate.end();
     for(; it != end; ++it)
     {
       UsdPrim prim = *it;
-
-      MObject object = proxy->findRequiredPath(prim.GetPath());
+      bool parentUnmerged = parentNodeIsUnmerged(prim);
+      MObject object;
+      if (parentUnmerged)
+      {
+        object = proxy->findRequiredPath(prim.GetParent().GetPath());
+      }
+      else
+      {
+        object = proxy->findRequiredPath(prim.GetPath());
+      }
 
       fileio::translators::TranslatorRefPtr translator = translatorManufacture.get(prim.GetTypeName());
       TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ProxyShapePostLoadProcess::createSchemaPrims prim=%s\n", prim.GetPath().GetText());
@@ -266,7 +300,8 @@ void ProxyShapePostLoadProcess::createSchemaPrims(
       //if(!context->hasEntry(prim.GetPath(), prim.GetTypeName()))
       {
         AL_BEGIN_PROFILE_SECTION(SchemaPrims);
-        if(!fileio::importSchemaPrim(prim, object, 0, context, translator, param))
+        MObject created;
+        if(!fileio::importSchemaPrim(prim, object, created, context, translator, param))
         {
           std::cerr << "Error: unable to load schema prim node: '" << prim.GetName().GetString() << "' that has type: '" << prim.GetTypeName() << "'" << std::endl;
         }
@@ -303,7 +338,8 @@ void ProxyShapePostLoadProcess::updateSchemaPrims(
       {
         TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ProxyShapePostLoadProcess::createSchemaPrims prim=%s hasEntry=false\n", prim.GetPath().GetText());
         AL_BEGIN_PROFILE_SECTION(SchemaPrims);
-        fileio::importSchemaPrim(prim, object, 0, context, translator);
+        MObject created;
+        fileio::importSchemaPrim(prim, object, created, context, translator);
         AL_END_PROFILE_SECTION();
       }
       else

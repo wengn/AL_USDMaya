@@ -40,7 +40,7 @@ using boost::python::object;
 namespace {
   struct MBoundingBoxConverter
   {
-    // to-python conversion of const PxrUsdMayaXformOpClassification.
+    // to-python conversion of const MBoundingBox.
     // Decided NOT to register this using boost::python::to_python_converter,
     // in case pxr registers one at some point
     static PyObject* convert(const MBoundingBox& bbox)
@@ -183,7 +183,7 @@ namespace {
         {
           return nullptr;
         }
-        for (int i = 0; i < numShapes; ++i)
+        for (uint32_t i = 0; i < numShapes; ++i)
         {
           dag.extendToShapeDirectlyBelow(i);
           if (isProxyShape(dag.node()))

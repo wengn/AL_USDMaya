@@ -20,7 +20,6 @@
 #include "AL/usdmaya/fileio/ExportParams.h"
 #include "AL/usdmaya/fileio/AnimationTranslator.h"
 #include "AL/usdmaya/fileio/translators/DgNodeTranslator.h"
-#include "AL/usdmaya/fileio/translators/MeshTranslator.h"
 #include "AL/usdmaya/fileio/translators/TransformTranslator.h"
 
 #include "maya/MItDependencyGraph.h"
@@ -269,7 +268,8 @@ void AnimationTranslator::exportAnimation(const ExporterParams& params)
      (startTransformAttrib != endTransformAttrib) ||
      (startMesh != endMesh))
   {
-    for(double t = params.m_minFrame, e = params.m_maxFrame + 1e-3f; t < e; t += 1.0)
+    double increment = 1.0 / std::max(1U, params.m_subSamples);
+    for(double t = params.m_minFrame, e = params.m_maxFrame + 1e-3f; t < e; t += increment)
     {
       MAnimControl::setCurrentTime(t);
       UsdTimeCode timeCode(t);
@@ -295,7 +295,9 @@ void AnimationTranslator::exportAnimation(const ExporterParams& params)
       }
       for(auto it = startMesh; it != endMesh; ++it)
       {
-        AL::usdmaya::utils::copyVertexData(MFnMesh(it->first), it->second, timeCode);
+        UsdGeomMesh mesh(it->second.GetPrim());
+        AL::usdmaya::utils::MeshExportContext context(it->first, mesh, timeCode);
+        context.copyVertexData(timeCode);
       }
     }
   }

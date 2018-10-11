@@ -22,8 +22,10 @@
 #include "pxr/usd/usd/stage.h"
 
 #include "maya/MPxLocatorNode.h"
+#include "maya/MNodeMessage.h"
 #include "AL/maya/utils/MayaHelperMacros.h"
 
+#include <iterator>
 #include <map>
 #include <set>
 #include <boost/thread.hpp>
@@ -34,12 +36,106 @@ namespace AL {
 namespace usdmaya {
 namespace nodes {
 
+class ProxyShape;
+
+//----------------------------------------------------------------------------------------------------------------------
+/// \brief  Iterator wrapper for LayerToIdsMap that hides non-dirty items
+///         Implemented as a template to define const / non-const iterator at same time
+/// \ingroup nodes
+//----------------------------------------------------------------------------------------------------------------------
+template <typename WrappedIterator>
+class DirtyOnlyIterator
+//    : public std::iterator<std::forward_iterator_tag,
+//                           typename WrappedIterator::value_type>
+{
+public:
+  typedef typename WrappedIterator::value_type value_type;
+
+  /// \brief  ctor
+  /// \param  it the start of the iteration range
+  /// \param  end the end of the iteration range
+  DirtyOnlyIterator(WrappedIterator it, WrappedIterator end):
+    m_iter(it),
+    m_end(end)
+  {
+    SetToNextDirty();
+  }
+
+  /// \brief  copy ctor
+  /// \param  other the iterator to copy
+  DirtyOnlyIterator(const DirtyOnlyIterator& other):
+    m_iter(other.m_iter),
+    m_end(other.m_end)
+  {
+    SetToNextDirty();
+  }
+
+  /// \brief  pre-increment operator
+  /// \return a reference to this
+  DirtyOnlyIterator& operator++()
+  {
+    ++m_iter;
+    SetToNextDirty();
+    return *this;
+  }
+
+  /// \brief  post-increment operator
+  /// \return a copy of the original iterator value
+  DirtyOnlyIterator operator++(int)
+  {
+    WrappedIterator tmp(*this);
+    operator++();
+    return tmp;
+  }
+
+  /// \brief  equivalence operator
+  /// \param  rhs the iterator to compare against
+  /// \return true if equivalent
+  bool operator == (const DirtyOnlyIterator& rhs) const
+  {
+    // You could argue we should check m_end too,
+    // but all we really care about is whether we're pointed
+    // at the same place, and it's faster...
+    return m_iter == rhs.m_iter;
+  }
+
+  /// \brief  non equivalence operator
+  /// \param  rhs the iterator to compare against
+  /// \return false if equivalent, true otherwise
+  bool operator != (const DirtyOnlyIterator& rhs) const
+  {
+    return m_iter != rhs.m_iter;
+  }
+
+  /// \brief  dereference operator
+  value_type& operator * ()
+    { return *m_iter; }
+
+private:
+  void SetToNextDirty()
+  {
+    while (m_iter != m_end && !m_iter->first->IsDirty())
+    {
+      ++m_iter;
+    }
+  }
+
+  WrappedIterator m_iter;
+  WrappedIterator m_end;
+};
+
 //----------------------------------------------------------------------------------------------------------------------
 /// \brief  Stores layers, in a way that they may be looked up by the layer ref ptr, or by identifier
 ///         Also, unlike boost::multi_index, we can have multiple identifiers per layer
+///         You can add non-dirty layers to the database, but the query operations will "hide" them -
+///         ie, iteration will skip by them, and findLayer will return an invalid ptr if it's not dirty
+///         We allow adding non-dirty items because if we want to guarantee we always have all the latest
+///         items, we need to deal with the situation where the current edit target starts out not
+///         dirty... and it's easiest to just add it then filter it if it's not dirty
 /// \ingroup nodes
 //----------------------------------------------------------------------------------------------------------------------
-class LayerDatabase {
+class LayerDatabase
+{
 public:
   typedef std::map<SdfLayerRefPtr, std::vector<std::string>> LayerToIdsMap;
   typedef std::map<std::string, SdfLayerRefPtr> IdToLayerMap;
@@ -47,7 +143,7 @@ public:
   /// \brief  Add the given layer to the set of layers in this LayerDatabase, if not already present,
   ///         and optionally add an extra identifier as a key to it
   /// \param  layer What layer to add to this database
-  /// \param  identifer Extra identifier to add as a key to this layer; note that the "canonical" identifier,
+  /// \param  identifier Extra identifier to add as a key to this layer; note that the "canonical" identifier,
   ///         as returned by layer.GetIdentifier(), is ALWAYS added as an identifier key for this layer so this
   ///         is intended as a way to provide a second identifier for the same layer (or third or more, if you
   ///         call it repeatedly). This is useful both because multiple identifiers may resolve to the same
@@ -57,7 +153,7 @@ public:
   ///         an empty string, it is ignored.
   /// \return bool which is true if the layer was actually added to the set of layers managed by this node
   ///         (ie, if it wasn't already managed)
-  bool addLayer(SdfLayerRefPtr layer, const std::string& identifier=std::string(""));
+  bool addLayer(SdfLayerRefPtr layer, const std::string& identifier = std::string());
 
   /// \brief  Remove the given layer to the list of layers managed by this node, if present.
   /// \return bool which is true if the layer was actually removed from the set of layers managed by this node
@@ -65,20 +161,60 @@ public:
   bool removeLayer(SdfLayerRefPtr layer);
 
   /// \brief  Find the layer in the set of layers managed by this node, by identifier
-  /// \return The found layer handle in the layer list managed by this node (invalid if not found)
+  /// \param  identifier the identifier the full identifier of the layer to locate
+  /// \return The found layer handle in the layer list managed by this node (invalid if not found or not dirty)
   SdfLayerHandle findLayer(std::string identifier) const;
 
-  LayerToIdsMap::size_type size() const { return m_layerToIds.size(); }
+  /// Because we may have an unknown number of non-dirty member layers which we're treating
+  /// as not-existing, we can't get a size without iterating over all the layers; we can,
+  /// however, do an empty/non-empty boolean check by seeing if begin() == end(); in the
+  /// worst case, when the LayerDatabase consists of nothing but non-dirty layers, begin()
+  /// will will still end up iterating through all the layers attempting to find a
+  /// non-dirty layer to start at, but the average case should be pretty fast
+  ///
+  /// We use the safe-bool idiom to avoid nasty automatic conversions, etc
+private:
+  typedef const LayerToIdsMap LayerDatabase::*_UnspecifiedBoolType;
+public:
+  operator _UnspecifiedBoolType() const
+    { return begin() == end() ? &LayerDatabase::m_layerToIds : nullptr; }
 
-  // Iterator interface
-  typedef LayerToIdsMap::iterator iterator;
-  typedef LayerToIdsMap::const_iterator const_iterator;
-  iterator begin() { return m_layerToIds.begin(); }
-  const_iterator begin() const { return m_layerToIds.cbegin(); }
-  const_iterator cbegin() const { return m_layerToIds.cbegin(); }
-  iterator end() { return m_layerToIds.end(); }
-  const_iterator end() const { return m_layerToIds.cend(); }
-  const_iterator cend() const { return m_layerToIds.cend(); }
+  /// \brief  Upper bound for the number of non-dirty layers in this object
+  ///         This is the count of all tracked layers, dirty-and-non-dirty;
+  ///         If it is zero, it can be guaranteed that there are no dirty
+  ///         layers, but if it is non-zero, we cannot guarantee that there
+  ///         are any non-dirty layers. Use boolean conversion above to test
+  ///         that.
+  size_t max_size() const
+    { return m_layerToIds.size(); }
+
+  // Iterator interface - skips past non-dirty items
+  typedef DirtyOnlyIterator<LayerToIdsMap::iterator> iterator;
+  typedef DirtyOnlyIterator<LayerToIdsMap::const_iterator> const_iterator;
+
+  /// \brief  returns start of layer range
+  iterator begin()
+    { return iterator(m_layerToIds.begin(), m_layerToIds.end()); }
+
+  /// \brief  returns start of layer range
+  const_iterator begin() const
+    { return const_iterator(m_layerToIds.cbegin(), m_layerToIds.cend()); }
+
+  /// \brief  returns start of layer range
+  const_iterator cbegin() const
+    { return const_iterator(m_layerToIds.cbegin(), m_layerToIds.cend()); }
+
+  /// \brief  returns end of layer range
+  iterator end()
+    { return iterator(m_layerToIds.end(), m_layerToIds.end()); }
+
+  /// \brief  returns end of layer range
+  const_iterator end() const
+    { return const_iterator(m_layerToIds.cend(), m_layerToIds.cend()); }
+
+  /// \brief  returns end of layer range
+  const_iterator cend() const
+    { return const_iterator(m_layerToIds.cend(), m_layerToIds.cend()); }
 
 private:
   void _addLayer(SdfLayerRefPtr layer, const std::string& identifier,
@@ -90,6 +226,7 @@ private:
 
 //----------------------------------------------------------------------------------------------------------------------
 /// \brief  The layer manager node handles serialization and deserialization of all layers used by all ProxyShapes
+///         It may temporarily contain non-dirty layers, but those will be filtered out by query operations.
 /// \ingroup nodes
 //----------------------------------------------------------------------------------------------------------------------
 class LayerManager
@@ -99,9 +236,10 @@ class LayerManager
 public:
 
   /// \brief  ctor
-  AL_USDMAYA_PUBLIC
   inline LayerManager()
     : MPxNode(), NodeHelper() {}
+
+  ~LayerManager();
 
   /// \brief  Find the already-existing non-referenced LayerManager node in the scene, or return a null MObject
   /// \return the found LayerManager node, or a null MObject
@@ -115,7 +253,7 @@ public:
   /// \param wasCreated If given, whether a new layer manager had to be created is stored here.
   /// \return the found-or-created LayerManager node
   AL_USDMAYA_PUBLIC
-  static MObject findOrCreateNode(MDGModifier* dgmod=nullptr, bool* wasCreated=nullptr);
+  static MObject findOrCreateNode(MDGModifier* dgmod = nullptr, bool* wasCreated = nullptr);
 
   /// \brief  Find the already-existing non-referenced LayerManager node in the scene, or return a nullptr
   /// \return the found LayerManager, or a nullptr
@@ -129,7 +267,7 @@ public:
   /// \param wasCreated If given, whether a new layer manager had to be created is stored here.
   /// \return the found-or-created LayerManager
   AL_USDMAYA_PUBLIC
-  static LayerManager* findOrCreateManager(MDGModifier* dgmod=nullptr, bool* wasCreated=nullptr);
+  static LayerManager* findOrCreateManager(MDGModifier* dgmod = nullptr, bool* wasCreated = nullptr);
 
   //--------------------------------------------------------------------------------------------------------------------
   /// Methods to handle the saving and restoring of layer data
@@ -137,7 +275,7 @@ public:
 
   /// \brief  Add the given layer to the list of layers managed by this node, if not already present.
   /// \param  layer What layer to add to this LayerManager
-  /// \param  identifer Extra identifier to add as a key to this layer; note that the "canonical" identifier,
+  /// \param  identifier Extra identifier to add as a key to this layer; note that the "canonical" identifier,
   ///         as returned by layer.GetIdentifier(), is ALWAYS added as an identifier key for this layer so this
   ///         is intended as a way to provide a second identifier for the same layer (or third or more, if you
   ///         call it repeatedly). This is useful both because multiple identifiers may resolve to the same
@@ -148,7 +286,7 @@ public:
   /// \return bool which is true if the layer was actually added to the list of layers managed by this node
   ///         (ie, if it wasn't already managed, and the given layer handle was valid)
   AL_USDMAYA_PUBLIC
-  bool addLayer(SdfLayerHandle layer, const std::string& identifier=std::string(""));
+  bool addLayer(SdfLayerHandle layer, const std::string& identifier = std::string());
 
   /// \brief  Remove the given layer to the list of layers managed by this node, if present.
   /// \return bool which is true if the layer was actually removed from the list of layers managed by this node

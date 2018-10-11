@@ -4,7 +4,6 @@ set(LIBRARY_NAME AL_USDMaya)
 
 list(APPEND AL_usdmaya_headers
         AL/usdmaya/Api.h
-        AL/usdmaya/AttributeType.h
         AL/usdmaya/DebugCodes.h
         AL/usdmaya/DrivenTransformsData.h
         AL/usdmaya/Metadata.h
@@ -19,7 +18,6 @@ list(APPEND AL_usdmaya_headers
 )
 
 list(APPEND AL_usdmaya_source
-        AL/usdmaya/AttributeType.cpp
         AL/usdmaya/DebugCodes.cpp
         AL/usdmaya/DrivenTransformsData.cpp
         AL/usdmaya/Global.cpp
@@ -33,21 +31,25 @@ list(APPEND AL_usdmaya_source
 )
 
 list(APPEND AL_usdmaya_cmds_headers
+        AL/usdmaya/cmds/CreateUsdPrim.h
         AL/usdmaya/cmds/DebugCommands.h
         AL/usdmaya/cmds/EventCommand.h
         AL/usdmaya/cmds/LayerCommands.h
         AL/usdmaya/cmds/ProxyShapeCommands.h
         AL/usdmaya/cmds/ProxyShapeSelectCommands.h
         AL/usdmaya/cmds/ProxyShapePostLoadProcess.h
+        AL/usdmaya/cmds/RendererCommands.h
         AL/usdmaya/cmds/UnloadPrim.h
 )
 list(APPEND AL_usdmaya_cmds_source
+        AL/usdmaya/cmds/CreateUsdPrim.cpp
         AL/usdmaya/cmds/DebugCommands.cpp
         AL/usdmaya/cmds/EventCommand.cpp
         AL/usdmaya/cmds/LayerCommands.cpp
         AL/usdmaya/cmds/ProxyShapeCommands.cpp
         AL/usdmaya/cmds/ProxyShapeSelectCommands.cpp
         AL/usdmaya/cmds/ProxyShapePostLoadProcess.cpp
+        AL/usdmaya/cmds/RendererCommands.cpp
         AL/usdmaya/cmds/UnloadPrim.cpp
 )
 
@@ -75,11 +77,8 @@ list(APPEND AL_usdmaya_fileio_source
 )
 
 list(APPEND AL_usdmaya_fileio_translators_headers
-        AL/usdmaya/fileio/translators/CameraTranslator.h
         AL/usdmaya/fileio/translators/DagNodeTranslator.h
         AL/usdmaya/fileio/translators/DgNodeTranslator.h
-        AL/usdmaya/fileio/translators/MeshTranslator.h
-        AL/usdmaya/fileio/translators/NurbsCurveTranslator.h
         AL/usdmaya/fileio/translators/TransformTranslator.h
         AL/usdmaya/fileio/translators/TranslatorBase.h
         AL/usdmaya/fileio/translators/TranslatorContext.h
@@ -88,11 +87,8 @@ list(APPEND AL_usdmaya_fileio_translators_headers
 )
 
 list(APPEND AL_usdmaya_fileio_translators_source
-        AL/usdmaya/fileio/translators/CameraTranslator.cpp
         AL/usdmaya/fileio/translators/DagNodeTranslator.cpp
         AL/usdmaya/fileio/translators/DgNodeTranslator.cpp
-        AL/usdmaya/fileio/translators/MeshTranslator.cpp
-        AL/usdmaya/fileio/translators/NurbsCurveTranslator.cpp
         AL/usdmaya/fileio/translators/TransformTranslator.cpp
         AL/usdmaya/fileio/translators/TranslatorBase.cpp
         AL/usdmaya/fileio/translators/TranslatorContext.cpp
@@ -106,6 +102,7 @@ list(APPEND AL_usdmaya_nodes_headers
         AL/usdmaya/nodes/ProxyDrawOverride.h
         AL/usdmaya/nodes/ProxyShape.h
         AL/usdmaya/nodes/ProxyShapeUI.h
+        AL/usdmaya/nodes/RendererManager.h
         AL/usdmaya/nodes/Transform.h
         AL/usdmaya/nodes/TransformationMatrix.h
 )
@@ -120,6 +117,7 @@ list(APPEND AL_usdmaya_nodes_source
         AL/usdmaya/nodes/ProxyShape.cpp
         AL/usdmaya/nodes/ProxyShapeSelection.cpp
         AL/usdmaya/nodes/ProxyShapeUI.cpp
+        AL/usdmaya/nodes/RendererManager.cpp
         AL/usdmaya/nodes/Transform.cpp
         AL/usdmaya/nodes/TransformationMatrix.cpp
         AL/usdmaya/nodes/proxy/DrivenTransforms.cpp
@@ -162,6 +160,18 @@ target_include_directories(
     ${MAYA_INCLUDE_DIRS}
 )
 
+set(Boost_LINK_LIBRARIES
+    ${Boost_PYTHON_LIBRARY}
+    ${Boost_THREAD_LIBRARY}
+)
+if(WIN32)
+    list(APPEND Boost_LINK_LIBRARIES
+        ${Boost_CHRONO_LIBRARY}
+        ${Boost_DATE_TIME_LIBRARY}
+    )
+endif()
+
+
 target_link_libraries(${LIBRARY_NAME}
     AL_EventSystem
     AL_USDMayaUtils
@@ -179,9 +189,7 @@ target_link_libraries(${LIBRARY_NAME}
     usdImaging
     usdImagingGL
     vt
-    ${Boost_PYTHON_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    ${Boost_CHRONO_LIBRARY}
+    ${Boost_LINK_LIBRARIES}
     ${MAYA_Foundation_LIBRARY}
     ${MAYA_OpenMayaAnim_LIBRARY}
     ${MAYA_OpenMayaFX_LIBRARY}
@@ -236,8 +244,15 @@ target_link_libraries(${PYTHON_LIBRARY_NAME}
     ${LIBRARY_NAME}
 )
 
-# bake plugInfo.json using pxr macro
-_plugInfo_subst(${LIBRARY_NAME} plugInfo.json)
+set(libFile ${CMAKE_SHARED_LIBRARY_PREFIX}${LIBRARY_NAME}${CMAKE_SHARED_LIBRARY_SUFFIX})
+set(PLUG_INFO_RESOURCE_PATH "resources")
+set(PLUG_INFO_ROOT "..")
+set(PLUG_INFO_PLUGIN_NAME "pxr.${LIBRARY_NAME}")
+set(PLUG_INFO_LIBRARY_PATH "../../${libFile}")
+configure_file(
+    plugInfo.json
+    ${CMAKE_CURRENT_BINARY_DIR}/plugInfo.json
+)
 
 install(TARGETS ${PYTHON_LIBRARY_NAME}
     LIBRARY
@@ -260,10 +275,10 @@ install(CODE
 )
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/plugInfo.json
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/usd/plugins/${LIBRARY_NAME}/resources
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/usd/${LIBRARY_NAME}/resources
 )
 install(CODE
-    "file(WRITE \"${CMAKE_INSTALL_PREFIX}/share/usd/plugins/plugInfo.json\" \"{\n    \\\"Includes\\\": [ \\\"*/resources/\\\" ]\n}\")"
+    "file(WRITE \"${CMAKE_INSTALL_PREFIX}/lib/usd/plugInfo.json\" \"{\n    \\\"Includes\\\": [ \\\"*/resources/\\\" ]\n}\")"
 )
 
 # install public headers

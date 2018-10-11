@@ -49,7 +49,7 @@ TEST(LayerCommands, layerCreateLayerTests)
   MFileIO::newFile(true);
   MString shapeName;
   {
-    const std::string temp_path = "/tmp/AL_USDMayaTests_layerCreateLayerTests.usda";
+    const std::string temp_path = buildTempPath("AL_USDMayaTests_layerCreateLayerTests.usda");
     const std::string testLayer = std::string(AL_USDMAYA_TEST_DATA) + "/root.usda";
     AL::usdmaya::nodes::ProxyShape* proxyShape = CreateMayaProxyShape(constructTransformChain, temp_path);
     // force the stage to load
@@ -76,10 +76,15 @@ TEST(LayerCommands, layerCreateLayerTests)
     SdfLayerHandle expectedLayer = SdfLayer::Find(testLayer);
     EXPECT_TRUE(expectedLayer);
 
-    // Check that we can refind the layer
+    // Check that since the layer hasn't been modified, it's not in the layerManager
     AL::usdmaya::nodes::LayerManager* layerManager = AL::usdmaya::nodes::LayerManager::findManager();
     EXPECT_TRUE(layerManager);
     SdfLayerHandle refoundExpectedLayer = layerManager->findLayer(expectedLayer->GetIdentifier());
+    EXPECT_FALSE(refoundExpectedLayer);
+
+    // Then dirty it, and check that we can find it in the layerManager
+    expectedLayer->SetComment("SetLayerAsDirty");
+    refoundExpectedLayer = layerManager->findLayer(expectedLayer->GetIdentifier());
     EXPECT_TRUE(refoundExpectedLayer);
     EXPECT_EQ(refoundExpectedLayer, expectedLayer);
   }
@@ -90,7 +95,7 @@ TEST(LayerCommands, addSubLayer)
 {
   MFileIO::newFile(true);
   MString shapeName;
-  const std::string temp_path = "/tmp/AL_USDMayaTests_addSubLayer.usda";
+  const std::string temp_path = buildTempPath("AL_USDMayaTests_addSubLayer.usda");
 
   std::function<UsdStageRefPtr()>  constructTransformChain = [] ()
   {

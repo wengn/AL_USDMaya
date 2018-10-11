@@ -93,24 +93,27 @@ TEST(export_constraint, constraints)
   MFileIO::newFile(true);
   MGlobal::executeCommand(g_constraints);
 
-  const char* command =
+  const std::string temp_path = buildTempPath("AL_USDMayaTests_constraints.usda");
+
+  MString command =
   "select -r \"polyCylinder1\" \"parentLoc\" \"orientLoc\" \"pointLoc\" \"scaleLoc\" \"aimLoc\" \"geomLoc\" \"pointOnPolyLoc\" \"normalLoc\" \"tangentLoc\";"
   "file -force -options "
   "\"Dynamic_Attributes=1;"
   "Meshes=1;"
   "Nurbs_Curves=1;"
   "Duplicate_Instances=1;"
-  "Use_Animal_Schema=1;"
   "Merge_Transforms=1;"
   "Animation=1;"
   "Use_Timeline_Range=0;"
   "Frame_Min=1;"
   "Frame_Max=50;"
-  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -es \"/tmp/AL_USDMayaTests_constraints.usda\";";
+  "Filter_Sample=0;\" -typ \"AL usdmaya export\" -pr -es \"";
+  command += temp_path.c_str();
+  command += "\";";
 
   MGlobal::executeCommand(command);
 
-  UsdStageRefPtr stage = UsdStage::Open("/tmp/AL_USDMayaTests_constraints.usda");
+  UsdStageRefPtr stage = UsdStage::Open(temp_path);
   EXPECT_TRUE(stage);
 
   const char* const paths[] = {

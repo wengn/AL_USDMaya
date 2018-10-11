@@ -184,41 +184,41 @@ public:
   /// \param  op the transformation op to read from
   /// \param  timeCode the time at which to query the transform value
   /// return  true if read ok
-  static bool readVector(MVector& result, const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::Default());
+  static bool readVector(MVector& result, const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::EarliestTime());
 
   /// \brief  helper method. Reads a shear value from the transform op specified at the requested timecode
   /// \param  result the returned result
   /// \param  op the transformation op to read from
   /// \param  timeCode the time at which to query the transform value
   /// return  true if read ok
-  static bool readShear(MVector& result, const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::Default());
+  static bool readShear(MVector& result, const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::EarliestTime());
 
   /// \brief  helper method. Reads a point from the transform op specified at the requested timecode
   /// \param  result the returned result
   /// \param  op the transformation op to read from
   /// \param  timeCode the time at which to query the transform value
   /// return  true if read ok
-  static bool readPoint(MPoint& result, const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::Default());
+  static bool readPoint(MPoint& result, const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::EarliestTime());
 
   /// \brief  helper method. Reads an euler rotation from the transform op specified at the requested timecode
   /// \param  result the returned result
   /// \param  op the transformation op to read from
   /// \param  timeCode the time at which to query the transform value
   /// return  true if read ok
-  static bool readRotation(MEulerRotation& result, const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::Default());
+  static bool readRotation(MEulerRotation& result, const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::EarliestTime());
 
   /// \brief  helper method. Reads a double from the transform op specified at the requested timecode (typically RotateX / rotateY values)
   /// \param  op the transformation op to read from
   /// \param  timeCode the time at which to query the transform value
   /// return  the returned value
-  static double readDouble(const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::Default());
+  static double readDouble(const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::EarliestTime());
 
   /// \brief  helper method. Reads a matrix from the transform op specified at the requested timecode
   /// \param  result the returned result
   /// \param  op the transformation op to read from
   /// \param  timeCode the time at which to query the transform value
   /// return  true if read ok
-  static bool readMatrix(MMatrix& result, const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::Default());
+  static bool readMatrix(MMatrix& result, const UsdGeomXformOp& op, UsdTimeCode timeCode = UsdTimeCode::EarliestTime());
 
   /// \brief  helper method. Pushes a vector into the transform op specified at the requested timecode
   /// \param  input the new value to insert into the transform operation
@@ -280,7 +280,7 @@ public:
 
   /// \brief  set the prim that this transformation matrix will read/write to.
   /// \param  prim the prim
-  void setPrim(const UsdPrim& prim);
+  void setPrim(const UsdPrim& prim, Transform* transformNode);
 
   /// \brief  If set to true, modifications to these transform attributes will be pushed back onto the original prim.
   /// \param  enabled true will cause changes to this transform update the values on the USD prim. False will mean that
@@ -423,15 +423,12 @@ public:
 private:
   //  Translation methods:
   MStatus translateTo(const MVector &vector, MSpace::Space = MSpace::kTransform) override;
-  MStatus translateBy(const MVector &vector, MSpace::Space = MSpace::kTransform) override;
 
   //  Scale methods:
   MStatus scaleTo(const MVector &, MSpace::Space = MSpace::kTransform) override;
-  MStatus scaleBy(const MVector &, MSpace::Space = MSpace::kTransform) override;
 
   //  Shear methods:
   MStatus shearTo(const MVector& shear, MSpace::Space = MSpace::kTransform) override;
-  MStatus shearBy(const MVector& shear, MSpace::Space = MSpace::kTransform) override;
 
   //  Scale pivot methods:
   MStatus setScalePivot(const MPoint &, MSpace::Space = MSpace::kTransform, bool balance = true) override;
@@ -446,9 +443,7 @@ private:
 
   //  Rotation methods:
   MStatus rotateTo(const MQuaternion &q, MSpace::Space = MSpace::kTransform) override;
-  MStatus rotateBy(const MQuaternion &q, MSpace::Space = MSpace::kTransform) override;
   MStatus rotateTo(const MEulerRotation &e, MSpace::Space = MSpace::kTransform) override;
-  MStatus rotateBy(const MEulerRotation &e, MSpace::Space = MSpace::kTransform) override;
   MStatus setRotateOrientation(const MQuaternion &q, MSpace::Space = MSpace::kTransform, bool balance = true) override;
   MStatus setRotateOrientation(const MEulerRotation &euler, MSpace::Space = MSpace::kTransform, bool balance = true) override;
 

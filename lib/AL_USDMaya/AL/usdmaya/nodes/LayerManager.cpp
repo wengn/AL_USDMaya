@@ -23,6 +23,14 @@
 #include "pxr/usd/sdf/fileFormat.h"
 #include "pxr/usd/sdf/textFileFormat.h"
 #include "pxr/usd/usd/usdaFileFormat.h"
+#include "pxr/usdImaging/usdImaging/version.h"
+#if (USD_IMAGING_API_VERSION >= 7)
+  #include "pxr/usdImaging/usdImagingGL/gl.h"
+  #include "pxr/usdImaging/usdImagingGL/hdEngine.h"
+#else
+  #include "pxr/usdImaging/usdImaging/gl.h"
+  #include "pxr/usdImaging/usdImaging/hdEngine.h"
+#endif
 
 #include "maya/MBoundingBox.h"
 #include "maya/MGlobal.h"
@@ -112,6 +120,10 @@ namespace AL {
 namespace usdmaya {
 namespace nodes {
 
+LayerManager::~LayerManager()
+{
+}
+
 //----------------------------------------------------------------------------------------------------------------------
 bool LayerDatabase::addLayer(SdfLayerRefPtr layer, const std::string& identifier)
 {
@@ -156,18 +168,23 @@ bool LayerDatabase::removeLayer(SdfLayerRefPtr layer)
   return true;
 }
 
-//----------------------------------------------------------------------------------------------------------------------
 SdfLayerHandle LayerDatabase::findLayer(std::string identifier) const
 {
   auto foundIdAndLayer = m_idToLayer.find(identifier);
   if(foundIdAndLayer != m_idToLayer.end())
   {
-    return foundIdAndLayer->second;
+    // Non-dirty layers may be placed in the database "temporarily" -
+    // ie, current edit targets for proxyShape stages, that have not
+    // yet been edited. Filter those out.
+    if(foundIdAndLayer->second->IsDirty())
+    {
+      return foundIdAndLayer->second;
+    }
   }
-
 
   return SdfLayerHandle();
 }
+
 
 //----------------------------------------------------------------------------------------------------------------------
 void LayerDatabase::_addLayer(SdfLayerRefPtr layer, const std::string& identifier,
@@ -270,6 +287,7 @@ MStatus LayerManager::initialise()
   try
   {
     setNodeType(kTypeName);
+    addFrame("USD Layer Manager Node");
 
     addFrame("Serialization infos");
 
@@ -423,7 +441,7 @@ MStatus LayerManager::populateSerialisationAttributes()
   AL_MAYA_CHECK_ERROR(status, errorString);
   {
     boost::shared_lock_guard<boost::shared_mutex> lock(m_layersMutex);
-    MArrayDataBuilder builder(&dataBlock, layers(), m_layerDatabase.size(), &status);
+    MArrayDataBuilder builder(&dataBlock, layers(), m_layerDatabase.max_size(), &status);
     AL_MAYA_CHECK_ERROR(status, errorString);
     std::string temp;
     for (const auto& layerAndIds : m_layerDatabase)

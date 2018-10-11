@@ -10,11 +10,17 @@ Pixar's [USDMaya plugin](https://graphics.pixar.com/usd/docs/Maya-USD-Plugins.ht
 ## Contact
 We have a google group for discussion and technical assistance: https://groups.google.com/forum/#!forum/al_usdmaya-discussion. For CLAs or to contact us directly, use email  **usdmaya@al.com.au**.
 
+## Videos
+We have some videos explaining some of the workflows we support. We are hoping to add to this as we go:
++ [Animation & Layout](https://youtu.be/RluuvOAXvnk)
++ [Modelling & Surfacing](https://youtu.be/DaxLk6pHijw)
+
 
 ## Detailed Documentation
 
 + [Building it](docs/build.md)
 + [FAQ](docs/faq.md)
++ [Python](docs/python.md)
 + [Contributing](docs/contributing.md)
 + [Translation](docs/translation.md)
 + [Basic Usage](docs/basicUsage.md)

@@ -119,18 +119,20 @@ nodes::ProxyShape* ProxyShapeCommandBase::getShapeNode(const MArgDatabase& args)
   for(uint32_t i = 0; i < sl.length(); ++i)
   {
     MStatus status = sl.getDagPath(i, path);
-
-    if(path.node().hasFn(MFn::kTransform))
+    if(status)
     {
-      path.extendToShape();
-    }
-
-    if(path.node().hasFn(MFn::kPluginShape))
-    {
-      MFnDagNode fn(path);
-      if(fn.typeId() == nodes::ProxyShape::kTypeId)
+      if(path.node().hasFn(MFn::kTransform))
       {
-        return (nodes::ProxyShape*)fn.userNode();
+        path.extendToShape();
+      }
+
+      if(path.node().hasFn(MFn::kPluginShape))
+      {
+        MFnDagNode fn(path);
+        if(fn.typeId() == nodes::ProxyShape::kTypeId)
+        {
+          return (nodes::ProxyShape*)fn.userNode();
+        }
       }
     }
   }
@@ -146,18 +148,20 @@ nodes::ProxyShape* ProxyShapeCommandBase::getShapeNode(const MArgDatabase& args)
         if(sl.length())
         {
           MStatus status = sl.getDagPath(0, path);
-
-          if(path.node().hasFn(MFn::kTransform))
+          if(status)
           {
-            path.extendToShape();
-          }
-
-          if(path.node().hasFn(MFn::kPluginShape))
-          {
-            MFnDagNode fn(path);
-            if(fn.typeId() == nodes::ProxyShape::kTypeId)
+            if(path.node().hasFn(MFn::kTransform))
             {
-              return (nodes::ProxyShape*)fn.userNode();
+              path.extendToShape();
+            }
+
+            if(path.node().hasFn(MFn::kPluginShape))
+            {
+              MFnDagNode fn(path);
+              if(fn.typeId() == nodes::ProxyShape::kTypeId)
+              {
+                return (nodes::ProxyShape*)fn.userNode();
+              }
             }
           }
         }
@@ -234,6 +238,34 @@ MStatus ProxyShapeImport::redoIt()
   MStatus status = m_modifier.doIt();
   if(status)
   {
+    // set the name of the node
+    MFnDagNode fnShape(m_shape);
+
+    if(m_createdParent)
+    {
+      // if lots of TM's have been specified as parents, just name the shape explicitly
+      if(m_parentTransforms.length())
+      {
+        if(m_proxy_name.length())
+        {
+          fnShape.setName(m_proxy_name + "Shape");
+        }
+      }
+      else
+      {
+        MFnDependencyNode fnTransform(fnShape.parent(0));
+        fnShape.setName(fnTransform.name() + "Shape");
+        if(m_proxy_name.length())
+        {
+          fnTransform.setName(m_proxy_name);
+        }
+        else
+        {
+          fnTransform.setName("AL_usdmaya_Proxy");
+        }
+      }
+    }
+
     status = m_modifier2.doIt();
     if(status)
     {
@@ -244,31 +276,6 @@ MStatus ProxyShapeImport::redoIt()
         fn.setObject(m_parentTransforms[i]);
         fn.addChild(m_shape, MFnDagNode::kNextPos, true);
       }
-    }
-  }
-
-  // set the name of the node
-  MFnDagNode fnShape(m_shape);
-
-  // if lots of TM's have been specified as parents, just name the shape explicitly
-  if(m_parentTransforms.length())
-  {
-    if(m_proxy_name.length())
-    {
-      fnShape.setName(m_proxy_name + "Shape");
-    }
-  }
-  else
-  {
-    MFnDependencyNode fnTransform(fnShape.parent(0));
-    fnShape.setName(fnTransform.name() + "Shape");
-    if(m_proxy_name.length())
-    {
-      fnTransform.setName(m_proxy_name);
-    }
-    else
-    {
-      fnTransform.setName("AL_usdmaya_Proxy");
     }
   }
 
@@ -296,6 +303,7 @@ MStatus ProxyShapeImport::doIt(const MArgList& args)
         items.getDependNode(i, node);
         if(node.hasFn(MFn::kTransform))
         {
+          m_createdParent = false;
           m_parentTransforms.append(node);
         }
       }
@@ -406,17 +414,13 @@ MStatus ProxyShapeImport::doIt(const MArgList& args)
 
   if(connectToTime)
   {
-    MSelectionList temp;
     MSelectionList sl;
-    MGlobal::getActiveSelectionList(temp, true);
-    MGlobal::selectByName("time1");
-    MGlobal::getActiveSelectionList(sl);
-    MGlobal::setActiveSelectionList(temp);
+    sl.add("time1");
     MObject time1;
     sl.getDependNode(0, time1);
     MFnDependencyNode fnTime(time1);
     MPlug outTime = fnTime.findPlug("outTime");
-    m_modifier.connect(outTime, MPlug(m_shape, nodes::ProxyShape::time()));
+    m_modifier2.connect(outTime, MPlug(m_shape, nodes::ProxyShape::time()));
   }
   status = redoIt();
   CHECK_MSTATUS_AND_RETURN_IT(status);
@@ -710,7 +714,7 @@ MStatus ProxyShapeImportAllTransforms::doIt(const MArgList& args)
       }
     }
   }
-  catch(const MStatus& status)
+  catch(const MStatus&)
   {
     return MS::kFailure;
   }
@@ -807,7 +811,7 @@ MStatus ProxyShapeRemoveAllTransforms::doIt(const MArgList& args)
       }
     }
   }
-  catch(const MStatus& status)
+  catch(const MStatus&)
   {
     return MS::kFailure;
   }
@@ -889,6 +893,7 @@ AL_MAYA_DEFINE_COMMAND(InternalProxyShapeSelect, AL_usdmaya);
 MSyntax InternalProxyShapeSelect::createSyntax()
 {
   MSyntax syntax = setUpCommonSyntax();
+  syntax.useSelectionAsDefault(false);
   syntax.addFlag("-pp", "-primPath", MSyntax::kString);
   syntax.addFlag("-h", "-help", MSyntax::kNoArg);
   syntax.addFlag("-cl", "-clear", MSyntax::kNoArg);
@@ -1310,6 +1315,7 @@ MSyntax TranslatePrim::createSyntax()
   syntax.addFlag("-ip", "-importPaths", MSyntax::kString);
   syntax.addFlag("-tp", "-teardownPaths", MSyntax::kString);
   syntax.addFlag("-fi", "-forceImport", MSyntax::kNoArg);
+  syntax.addFlag("-fd", "-forceDefault", MSyntax::kNoArg);
   return syntax;
 }
 
@@ -1341,6 +1347,12 @@ MStatus TranslatePrim::doIt(const MArgList& args)
     if(db.isFlagSet("-fi"))
     {
       tp.setForcePrimImport(true);
+    }
+
+    // change the translator context to read default value
+    if(db.isFlagSet("-fd"))
+    {
+      m_proxy->context()->setForceDefaultRead(true);
     }
   }
   catch(const MStatus& status)
@@ -1490,6 +1502,17 @@ AL_usdmaya_ProxyShapeImport Overview:
 
        -populationMaskInclude "/only/show/this/prim1,/only/show/this/prim2"
 
+   It is possible to import the USD stage with an overloaded session layer _(which can be useful if you wish to import
+   the scene with a specific set of variants set)_.  To specify the session layer contents, use the -session flag:
+
+       -session "#usda 1.0"
+
+   It is also possible to prevent all loadable prims from being loaded when importing the USD stage by specifying the unloaded
+   flag _(the default is false)_
+
+       -unloaded true   //< don't load any loadable prims
+       -unloaded false  //< load all loadable prims
+
     The command will return a string array containing the names of all instances of the created node. (There will be
     more than one instance if more than one transform was selected or passed into the command.)  By default, the will
     be the shortest-unique names; if -fp/-fullpaths is given, then they will be full path names.
@@ -1558,8 +1581,13 @@ AL_usdmaya_ProxyShapeRemoveAllTransforms Overview:
 const char* const ProxyShapeImportPrimPathAsMaya::g_helpText = R"(
 AL_usdmaya_ProxyShapeImportPrimPathAsMaya Overview:
 
-  Imports the following path as a hierarchy of transforms:
+  The following call will import the path "/some/prim/path", and all of it's parent transforms as AL_usdmaya_Transform
+  nodes into maya.
+
     AL_usdmaya_ProxyShapeImportPrimPathAsMaya "ProxyShape1" -pp "/some/prim/path";
+
+  The custom Maya transforms generated will now act as thin wrapper over the transforms within USD. Any modifications
+  you make within Maya will be directly translated into USD _(and stored within the currect edit target)_.
 
   Adding in the -ap/-asProxy flag will build a transform hierarchy of Transform nodes to the
   specified prim, and then create a new ProxyShape to represent all of that geometry underneath
@@ -1567,14 +1595,19 @@ AL_usdmaya_ProxyShapeImportPrimPathAsMaya Overview:
 
     AL_usdmaya_ProxyShapeImportPrimPathAsMaya "ProxyShape1" -ap -pp "/some/prim/path";
 
-  I'm not sure why anyone would want that, but you've got it, so there.
 )";
 
 //----------------------------------------------------------------------------------------------------------------------
 const char* const ProxyShapePrintRefCountState::g_helpText = R"(
 AL_usdmaya_ProxyShapePrintRefCountState Overview:
 
-  Command used for debugging the internal transform reference counts.
+  The AL_usdmaya_ProxyShape node maintains an internal set of reference counts that determine the life span of an
+  AL_usdmaya_Transform node (i.e. a transform may have been created because it has been selected, or because the
+  transform is required for a particular plugin translator node). For the average user of AL_USDMaya, these ref
+  counts are nothing more than an implementation detail that can be ignored. For some developers working on the
+  core of AL_USDMaya, being able to inspect these ref counts may be of use, which you can do so like this:
+
+    AL_usdmaya_ProxyShapePrintRefCountState -p "ProxyShapeName";
 )";
 
 

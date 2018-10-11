@@ -20,13 +20,19 @@
 #include "maya/MArgDatabase.h"
 #include "maya/MGlobal.h"
 
+#ifdef _WIN32
+# define RESET_COLOUR
+#else
+# define RESET_COLOUR "\e[39m"
+#endif
+
 const char* happy_cat =
 "\n"
 "    \\    /\\ \n"
 "     )  ( ^)\n"
 "    (  /  )\n"
 "     \\(__)|\n"
-"\e[39m";
+RESET_COLOUR;
 
 const char* angry_cat =
 "\n"
@@ -34,7 +40,7 @@ const char* angry_cat =
 "        ( >)\n"
 "   /\\  /  )\n"
 "  /  \\(__)|\n"
-"\e[39m";
+RESET_COLOUR;
 
 //----------------------------------------------------------------------------------------------------------------------
 const MString UnitTestHarness::kName = "MayaUtils_UnitTestHarness";
@@ -150,7 +156,7 @@ MStatus UnitTestHarness::doIt(const MArgList& args)
 
   char** argv = new char*[arguments.size()];
   int argc(arguments.size());
-  for(size_t i = 0; i < argc; ++i)
+  for(int i = 0; i < argc; ++i)
   {
     argv[i] = (char*)arguments[i].c_str();
   }
@@ -164,37 +170,23 @@ MStatus UnitTestHarness::doIt(const MArgList& args)
   delete [] argv;
   setResult(error_code);
 
-  cleanTemporaryFiles();
-
   if(MGlobal::kInteractive == MGlobal::mayaState())
     MGlobal::executeCommand("refresh -suspend false");
 
   if(error_code)
   {
+    #ifndef _WIN32
     if(::testing::GTEST_FLAG(color) != "no") std::cout << "\e[31m";
+    #endif
     std::cout << angry_cat;
   }
   else
   {
+    #ifndef _WIN32
     if(::testing::GTEST_FLAG(color) != "no") std::cout << "\e[32m";
+    #endif
     std::cout << happy_cat;
   }
   return MS::kSuccess;
 }
 
-//------------------------------------------------------------------------------
-void UnitTestHarness::cleanTemporaryFiles() const
-{
-  MString cmd(
-      "import glob;"
-      "import os;"
-      "[os.remove(x) for x in glob.glob('/tmp/AL_USDMayaTests*.usda')];"
-      "[os.remove(x) for x in glob.glob('/tmp/AL_USDMayaTests*.ma')]"
-      );
-
-  MStatus stat = MGlobal::executePythonCommand(cmd);
-
-  if(stat != MStatus::kSuccess) {
-    MGlobal::displayWarning("Unable to remove temporary test files");
-  }
-}

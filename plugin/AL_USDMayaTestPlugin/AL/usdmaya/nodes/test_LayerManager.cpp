@@ -208,7 +208,8 @@ TEST(LayerManager, addRemoveLayer)
   {
     ASSERT_TRUE(manager->addLayer(anonLayer));
     ASSERT_FALSE(manager->addLayer(anonLayer));
-
+    //Dirty the anonymous layer so it can be found
+    anonLayer->SetComment("DirtyThisAnonLayer");
     ASSERT_EQ(manager->findLayer(anonLayer->GetIdentifier()), anonLayer);
     ASSERT_FALSE(manager->findLayer(realLayer->GetIdentifier()));
     manager->getLayerIdentifiers(layerIds);
@@ -220,7 +221,7 @@ TEST(LayerManager, addRemoveLayer)
   {
     ASSERT_TRUE(manager->addLayer(realLayer));
     ASSERT_FALSE(manager->addLayer(realLayer));
-
+    realLayer->SetComment("DirtyThisAnonLayer");
     ASSERT_EQ(manager->findLayer(anonLayer->GetIdentifier()), anonLayer);
     ASSERT_EQ(manager->findLayer(realLayer->GetIdentifier()), realLayer);
     manager->getLayerIdentifiers(layerIds);
@@ -402,8 +403,8 @@ TEST(LayerManager, simpleSaveRestore)
   const TfToken fooToken("foo");
   const SdfPath fooPath = hipPath.AppendProperty(fooToken); // ie, /root/hip1.foo
   const float fooValue = 5.86;
-  const std::string temp_path = "/tmp/AL_USDMayaTests_LayerManager_simpleSaveRestore.usda";
-  const MString temp_ma_path = "/tmp/AL_USDMayaTests_LayerManager_simpleSaveRestore.ma";
+  const std::string temp_path = buildTempPath("AL_USDMayaTests_LayerManager_simpleSaveRestore.usda");
+  const MString temp_ma_path = buildTempPath("AL_USDMayaTests_LayerManager_simpleSaveRestore.ma");
 
   MString shapeName;
 
@@ -462,13 +463,13 @@ TEST(LayerManager, simpleSaveRestore)
 
     auto stage = proxy->getUsdStage();
     auto hip = stage->GetPrimAtPath(hipPath);
-    auto root = stage->GetRootLayer();
+    auto session = stage->GetSessionLayer();
 
     ASSERT_TRUE(hip.HasAttribute(fooToken));
     float outValue;
     hip.GetAttribute(fooToken).Get(&outValue);
     EXPECT_EQ(outValue, fooValue);
-    auto fooLayerAttr = root->GetAttributeAtPath(fooPath);
+    auto fooLayerAttr = session->GetAttributeAtPath(fooPath);
     ASSERT_TRUE(fooLayerAttr);
     EXPECT_EQ(fooLayerAttr->GetDefaultValue(), fooValue);
   };
@@ -500,14 +501,14 @@ TEST(LayerManager, simpleSaveRestore)
 
     auto stage = proxy->getUsdStage();
     auto hip = stage->GetPrimAtPath(hipPath);
-    auto root = stage->GetRootLayer();
+    auto session = stage->GetSessionLayer();
 
     // Verify that initially, in the stage, /root/hip1.foo attribute is not present
     EXPECT_FALSE(hip.HasAttribute(fooToken));
-    EXPECT_FALSE(root->GetAttributeAtPath(fooPath));
+    EXPECT_FALSE(session->GetAttributeAtPath(fooPath));
 
     // Now add the foo attribute
-    EXPECT_EQ(stage->GetEditTarget().GetLayer(), root);
+    EXPECT_EQ(stage->GetEditTarget().GetLayer(), session);
     auto fooStageAttr = hip.CreateAttribute(fooToken, SdfValueTypeNames->Float);
     // ...and set it...
     fooStageAttr.Set(fooValue);
@@ -517,16 +518,9 @@ TEST(LayerManager, simpleSaveRestore)
     float outValue;
     hip.GetAttribute(fooToken).Get(&outValue);
     EXPECT_EQ(outValue, fooValue);
-    auto fooLayerAttr = root->GetAttributeAtPath(fooPath);
+    auto fooLayerAttr = session->GetAttributeAtPath(fooPath);
     ASSERT_TRUE(fooLayerAttr);
     EXPECT_EQ(fooLayerAttr->GetDefaultValue(), fooValue);
-
-    // There shouldn't be a layer manager
-    EXPECT_TRUE(AL::usdmaya::nodes::LayerManager::findNode().isNull());
-    MStringArray result;
-    MGlobal::executeCommand(MString("ls -type " ) + AL::usdmaya::nodes::LayerManager::kTypeName,
-                            result);
-    EXPECT_EQ(result.length(), 0);
   }
 
   {

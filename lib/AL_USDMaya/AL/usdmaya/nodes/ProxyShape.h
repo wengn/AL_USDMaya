@@ -231,6 +231,7 @@ struct FindLockedPrimsLogic
 };
 
 typedef const HierarchyIterationLogic*  HierarchyIterationLogics[3];
+typedef std::unordered_map<SdfPath, MString, SdfPath::Hash > PrimPathToDagPath;
 
 extern AL::event::EventId kPreClearStageCache;
 extern AL::event::EventId kPostClearStageCache;
@@ -250,6 +251,7 @@ class ProxyShape
   friend struct SelectionUndoHelper;
   friend class ProxyShapeUI;
   friend class StageReloadGuard;
+  friend class ProxyDrawOverride;
 public:
 
   // returns the shape's parent transform
@@ -310,7 +312,7 @@ public:
   /// display guide - sets shape to display geometry of purpose "guide". See <a href="https://github.com/PixarAnimationStudios/USD/blob/95eef7c9a6662a5362dfc312a186f50c58e27ecd/pxr/usd/lib/usdGeom/imageable.h#L165">imageable.h</a>
   AL_DECL_ATTRIBUTE(displayGuides);
 
-  /// display render guide - sets hape to display geometry of purpose "render. See <a href="https://github.com/PixarAnimationStudios/USD/blob/95eef7c9a6662a5362dfc312a186f50c58e27ecd/pxr/usd/lib/usdGeom/imageable.h#L165">imageable.h</a>
+  /// display render guide - sets hape to display geometry of purpose "render". See <a href="https://github.com/PixarAnimationStudios/USD/blob/95eef7c9a6662a5362dfc312a186f50c58e27ecd/pxr/usd/lib/usdGeom/imageable.h#L165">imageable.h</a>
   AL_DECL_ATTRIBUTE(displayRenderGuides);
 
   /// Connection to any layer DG nodes
@@ -364,9 +366,6 @@ public:
 
   /// Excluded geometry that has been explicitly translated
   AL_DECL_ATTRIBUTE(excludedTranslatedGeometry);
-
-  /// Hydra renderer plugin used for rendering (not storable)
-  AL_DECL_ATTRIBUTE(rendererPlugin);
 
   /// Cache ID of the currently loaded stage)
   AL_DECL_ATTRIBUTE(stageCacheId);
@@ -537,7 +536,6 @@ public:
   void printRefCounts() const;
 
   /// \brief  destroys all internal transform references
-  AL_USDMAYA_PUBLIC
   void destroyTransformReferences()
     { m_requiredPaths.clear(); }
 
@@ -609,6 +607,20 @@ public:
   AL_USDMAYA_PUBLIC
   void deserialiseTranslatorContext();
 
+  /// \brief  gets the maya node path for a prim, stores the mapping and returns it
+  /// \param  usdPrim the prim we are bringing in to maya
+  /// \param  mayaObject the corresponding maya node
+  /// \return  a dag path to the maya object
+  AL_USDMAYA_PUBLIC
+  MString recordUsdPrimToMayaPath(const UsdPrim &usdPrim,
+                                  const MObject &mayaObject);
+
+  /// \brief  returns the stored maya node path for a prim
+  /// \param  usdPrim a prim that has been brought into maya
+  /// \return  a dag path to the maya object
+  AL_USDMAYA_PUBLIC
+  MString getMayaPathFromUsdPrim(const UsdPrim& usdPrim);
+
   /// \brief aggregates logic that needs to iterate through the hierarchy looking for properties/metdata on prims
   AL_USDMAYA_PUBLIC
   void findTaggedPrims();
@@ -630,7 +642,6 @@ public:
 
   /// \brief  returns the plugin translator registry assigned to this shape
   /// \return the translator registry
-  AL_USDMAYA_PUBLIC
   fileio::translators::TranslatorManufacture& translatorManufacture()
     { return m_translatorManufacture; }
 
@@ -689,7 +700,6 @@ public:
   ///         has been specified, the pseudo root will be passed to UsdImaging
   /// \return the prim specified by the user (if valid), the pseudo root if no prim has been specified, or a NULL
   ///         prim if the stage is invalid.
-  AL_USDMAYA_PUBLIC
   UsdPrim getRootPrim()
     {
       if(m_stage)
@@ -769,7 +779,6 @@ public:
 
   /// \brief  provides access to the selection list on this proxy shape
   /// \return the internal selection list
-  AL_USDMAYA_PUBLIC
   SelectionList& selectionList()
     { return m_selectionList; }
 
@@ -785,7 +794,6 @@ public:
 
   /// \brief Returns the SelectionDatabase owned by the ProxyShape
   /// \return A constant SelectableDB owned by the ProxyShape
-  AL_USDMAYA_PUBLIC
   const AL::usdmaya::SelectabilityDB& selectabilityDB() const
     { return const_cast<ProxyShape*>(this)->selectabilityDB(); }
 
@@ -817,21 +825,24 @@ public:
 
   /// \brief Translates prims at the specified paths, the operation conducted by the translator depends on
   ///        which list you populate.
-  /// \param importPaths paths you wish to import
+  /// \param importPrims array of prims you wish to import
   /// \param teardownPaths paths you wish to teardown
   /// \param param are flags which direct the translation of the prims
   AL_USDMAYA_PUBLIC
   void translatePrimsIntoMaya(
       const AL::usd::utils::UsdPrimVector& importPrims,
-      const SdfPathVector& teardownPrims,
+      const SdfPathVector& teardownPaths,
       const fileio::translators::TranslatorParameters& param = fileio::translators::TranslatorParameters());
 
-  /// \brief Breaks a comma separated string up into a SdfPath Vector
-  /// \param importPaths paths you wish to import
-  /// \param teardownPaths paths you wish to teardown
-  /// \param param are flags which direct the translation of the prims
+  /// \brief  Breaks a comma separated string up into a SdfPath Vector
+  /// \param  paths the comma separated list of paths
+  /// \return the separated list of paths
   AL_USDMAYA_PUBLIC
   SdfPathVector getPrimPathsFromCommaJoinedString(const MString &paths) const;
+
+  /// \brief  Returns the selection mask of the shape
+  AL_USDMAYA_PUBLIC
+  MSelectionMask getShapeSelectionMask() const override;
 
 private:
 
@@ -1009,6 +1020,7 @@ private:
   FindUnselectablePrimsLogic m_findUnselectablePrims;
   SdfPathHashSet m_selectedPaths;
   FindLockedPrimsLogic m_findLockedPrims;
+  PrimPathToDagPath m_primPathToDagPath;
   std::vector<SdfPath> m_paths;
   std::vector<UsdPrim> m_prims;
   TfNotice::Key m_objectsChangedNoticeKey;
@@ -1017,8 +1029,8 @@ private:
 
   mutable std::map<UsdTimeCode, MBoundingBox> m_boundingBoxCache;
   AL::event::CallbackId m_beforeSaveSceneId = -1;
-  MCallbackId m_attributeChanged = -1;
-  MCallbackId m_onSelectionChanged = -1;
+  MCallbackId m_attributeChanged = 0;
+  MCallbackId m_onSelectionChanged = 0;
   SdfPathVector m_excludedGeometry;
   SdfPathVector m_excludedTaggedGeometry;
   SdfPathSet m_lockTransformPrims;
@@ -1033,7 +1045,7 @@ private:
   fileio::translators::TranslatorManufacture m_translatorManufacture;
   SdfPath m_changedPath;
   SdfPathVector m_variantSwitchedPrims;
-  SdfLayerHandle m_prevTargetLayer;
+  SdfLayerHandle m_prevEditTarget;
   UsdImagingGLHdEngine* m_engine = 0;
 
   uint32_t m_engineRefCount = 0;
@@ -1041,7 +1053,6 @@ private:
   bool m_drivenTransformsDirty = false;
   bool m_pleaseIgnoreSelection = false;
   bool m_hasChangedSelection = false;
-  static TfTokenVector m_rendererPlugins;
 };
 
 //----------------------------------------------------------------------------------------------------------------------

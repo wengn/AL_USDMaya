@@ -15,9 +15,16 @@
 //
 #include <gtest/gtest.h>
 #include "AL/UnitTestHarness.h"
+#include "test_usdmaya.h"
 #include "maya/MSyntax.h"
 #include "maya/MArgDatabase.h"
 #include "maya/MGlobal.h"
+
+#ifdef _WIN32
+# define RESET_COLOUR
+#else
+# define RESET_COLOUR "\e[39m"
+#endif
 
 const char* happy_dino =
 "               __\n"
@@ -25,8 +32,7 @@ const char* happy_dino =
 "     _.----._/ /\n"
 "    /         /\n"
 " __/ (  | (  |\n"
-"/__.-'|_|--|_|\n"
-"\e[39m";
+"/__.-'|_|--|_|\n" RESET_COLOUR;
 
 const char* angry_dino =
 "               __\n"
@@ -34,8 +40,7 @@ const char* angry_dino =
 "     _/\\/\\/\\_/ /\n"
 "   _|         /\n"
 " _|  (  | (  |\n"
-"/__.-'|_|--|_|\n"
-"\e[39m";
+"/__.-'|_|--|_|\n" RESET_COLOUR;
 
 //----------------------------------------------------------------------------------------------------------------------
 const MString UnitTestHarness::kName = "AL_usdmaya_UnitTestHarness";
@@ -150,8 +155,8 @@ MStatus UnitTestHarness::doIt(const MArgList& args)
   std::vector<std::string> arguments = constructGoogleTestArgs(database);
 
   char** argv = new char*[arguments.size()];
-  int argc(arguments.size());
-  for(size_t i = 0; i < argc; ++i)
+  int32_t argc(arguments.size());
+  for(int32_t i = 0; i < argc; ++i)
   {
     argv[i] = (char*)arguments[i].c_str();
   }
@@ -175,12 +180,16 @@ MStatus UnitTestHarness::doIt(const MArgList& args)
 
   if(error_code)
   {
+    #ifndef _WIN32
     if(::testing::GTEST_FLAG(color) != "no") std::cout << "\e[31m";
+    #endif
     std::cout << angry_dino;
   }
   else
   {
+    #ifndef _WIN32
     if(::testing::GTEST_FLAG(color) != "no") std::cout << "\e[32m";
+    #endif
     std::cout << happy_dino;
   }
   return MS::kSuccess;
@@ -189,11 +198,11 @@ MStatus UnitTestHarness::doIt(const MArgList& args)
 //------------------------------------------------------------------------------
 void UnitTestHarness::cleanTemporaryFiles() const
 {
+  const MString temp_path = buildTempPath("AL_USDMayaTests*.*");
   MString cmd(
       "import glob;"
       "import os;"
-      "[os.remove(x) for x in glob.glob('/tmp/AL_USDMayaTests*.usda')];"
-      "[os.remove(x) for x in glob.glob('/tmp/AL_USDMayaTests*.ma')]"
+      "[os.remove(x) for x in glob.glob('" + temp_path + "')];"
       );
 
   MStatus stat = MGlobal::executePythonCommand(cmd);

@@ -39,17 +39,17 @@ extern const TfToken ALExcludedPrimSchema;
 /// \brief  a method called to import a schema prim into maya
 /// \param  usdPrim the usd prim to be imported into Maya
 /// \param  parent the parent transform for the prim
-/// \param  created the returned MObject of the created node (can be null)
+/// \param  created the returned MObject of the created node
 /// \param  context a custom context to use when importing the prim
 /// \param  translator the custom translator to use to import the prim
-/// \param  forceImport overrides the default import state of the translator and forces and import.
+/// \param  param params controlling the import of the plugin translator nodes
 /// \return true if the import succeeded, false otherwise
 /// \ingroup   fileio
 //----------------------------------------------------------------------------------------------------------------------
 bool importSchemaPrim(
     const UsdPrim& usdPrim,
     MObject& parent,
-    MObject* created = 0,
+    MObject& created,
     translators::TranslatorContextPtr context = TfNullPtr,
     const translators::TranslatorRefPtr translator = TfNullPtr,
     const fileio::translators::TranslatorParameters& param = fileio::translators::TranslatorParameters());

@@ -29,7 +29,6 @@ namespace translators {
 //----------------------------------------------------------------------------------------------------------------------
 TranslatorManufacture::TranslatorManufacture(TranslatorContextPtr context)
 {
-  unsigned int translatorCount = 0;
   std::set<TfType> loadedTypes;
   std::set<TfType> derivedTypes;
 
@@ -49,15 +48,19 @@ TranslatorManufacture::TranslatorManufacture(TranslatorContextPtr context)
         // over the derived types just to be sure...
         keepGoing = true;
         if (auto* factory = t.GetFactory<TranslatorFactoryBase>())
+        {
           if (TranslatorRefPtr ptr = factory->create(context))
+          {
             m_translatorsMap.emplace(ptr->getTranslatedType().GetTypeName(), ptr);
+          }
+        }
       }
     }
   }
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-TranslatorRefPtr TranslatorManufacture::get(const TfToken type_name)
+TranslatorManufacture::RefPtr TranslatorManufacture::get(const TfToken type_name)
 {
   TfType type = TfType::FindDerivedByName<UsdSchemaBase>(type_name);
   std::string typeName(type.GetTypeName());
@@ -67,6 +70,26 @@ TranslatorRefPtr TranslatorManufacture::get(const TfToken type_name)
     return m_translatorsMap[typeName];
   }
   return TfNullPtr;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+TranslatorManufacture::RefPtr TranslatorManufacture::get(const MObject& mayaObject)
+{
+  TranslatorManufacture::RefPtr base;
+  TranslatorManufacture::RefPtr derived;
+  for(auto& it : m_translatorsMap)
+  {
+    ExportFlag mode = it.second->canExport(mayaObject);
+    switch(mode)
+    {
+    case ExportFlag::kNotSupported: break;
+    case ExportFlag::kFallbackSupport: base = it.second; break;
+    case ExportFlag::kSupported: derived = it.second; break;
+    default:
+      break;
+    }
+  }
+  return derived ? derived : base;
 }
 
 //----------------------------------------------------------------------------------------------------------------------

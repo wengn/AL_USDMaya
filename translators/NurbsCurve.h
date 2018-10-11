@@ -29,8 +29,11 @@ class NurbsCurve : public TranslatorBase
 {
 public:
   AL_USDMAYA_DECLARE_TRANSLATOR(NurbsCurve);
+private:
   MStatus initialize() override;
-  MStatus import(const UsdPrim& prim, MObject& parent) override;
+  MStatus import(const UsdPrim& prim, MObject& parent, MObject& createdObj) override;
+  UsdPrim exportObject(UsdStageRefPtr stage, MDagPath dagPath, const SdfPath& usdPath,
+                       const ExporterParams& params) override;
   MStatus tearDown(const SdfPath& path) override;
   MStatus update(const UsdPrim& prim) override;
   MStatus preTearDown(UsdPrim& prim) override;
@@ -40,8 +43,12 @@ public:
   bool importableByDefault() const override
   { return false; }
 
+  ExportFlag canExport(const MObject& obj) override
+    { return obj.hasFn(MFn::kNurbsCurve) ? ExportFlag::kFallbackSupport : ExportFlag::kNotSupported; }
+
 private:
-  void writeEdits(UsdPrim& prim);
+  void writeEdits(UsdGeomNurbsCurves& nurbsCurvesPrim, MFnNurbsCurve& fnCurve, bool writeAll);
+
   static MObject m_visible;
 };
 

@@ -52,17 +52,16 @@ private:
 class MayaReference : public TranslatorBase
 {
 public:
-  
   AL_USDMAYA_DECLARE_TRANSLATOR(MayaReference);
+private:
 
   MStatus initialize() override;
-  MStatus import(const UsdPrim& prim, MObject& parent) override;
+  MStatus import(const UsdPrim& prim, MObject& parent, MObject& createdObj) override;
   MStatus tearDown(const SdfPath& path) override;
   MStatus update(const UsdPrim& path) override;
   bool supportsUpdate() const override 
     { return true; }
-  
-private:
+
   MayaReferenceLogic m_mayaReferenceLogic;
 };
 

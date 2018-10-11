@@ -179,6 +179,22 @@ private:
   MStatus redoIt() override;
 };
 
+//----------------------------------------------------------------------------------------------------------------------
+/// \brief  Command to introspect and pull out data from the layer manager
+/// \ingroup commands
+//----------------------------------------------------------------------------------------------------------------------
+class LayerManager
+  : public LayerCommandBase
+{
+public:
+  AL_MAYA_DECLARE_COMMAND();
+private:
+  bool isUndoable() const override;
+  MStatus doIt(const MArgList& args) override;
+  MStatus captureLayerContents(const MString& id, MStringArray& results);
+};
+
+
 
 /// \brief  function called on startup to generate the menu & option boxes for the layer commands
 /// \ingroup commands

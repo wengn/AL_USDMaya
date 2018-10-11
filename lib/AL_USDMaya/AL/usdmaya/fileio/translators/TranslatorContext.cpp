@@ -77,7 +77,7 @@ void TranslatorContext::updatePrimTypes()
     UsdPrim prim = stage->GetPrimAtPath(path);
     if(!prim)
     {
-      m_primMapping.erase(it++);
+      it = m_primMapping.erase(it);
     }
     else
     if(it->type() != prim.GetTypeName())
@@ -233,6 +233,7 @@ void TranslatorContext::insertItem(const UsdPrim& prim, MObjectHandle object)
   }
 }
 
+
 //----------------------------------------------------------------------------------------------------------------------
 void TranslatorContext::removeItems(const SdfPath& path)
 {
@@ -297,7 +298,7 @@ void TranslatorContext::removeItems(const SdfPath& path)
     }
     if(hasDagNodes)
     {
-      for (int i = 0; i < tempXforms.size(); ++i)
+      for (size_t i = 0, n = tempXforms.size(); i < n; ++i)
       {
         // Check if these xforms have already been deleted automatically when we deleted their child shape.
         if(tempXforms[i].isAlive() && tempXforms[i].isValid())
@@ -409,7 +410,7 @@ void TranslatorContext::preRemoveEntry(const SdfPath& primPath, SdfPathVector& i
     // we are no longer in the same prim root
     const SdfPath& childPath = range_end->path();
 
-    if(!range_end->path().HasPrefix(primPath))
+    if(!childPath.HasPrefix(primPath))
     {
       break;
     }
@@ -461,9 +462,13 @@ void TranslatorContext::removeEntries(const SdfPathVector& itemsToRemove)
   {
     auto path = *iter;
     auto node = std::lower_bound(m_primMapping.begin(), m_primMapping.end(), path, value_compare());
+    bool isInTransformChain = isPrimInTransformChain(path);
 
     TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("TranslatorContext::removeEntries removing: %s\n", iter->GetText());
-    unloadPrim(path, node->object());
+    if(node->objectHandle().isValid() && node->objectHandle().isAlive())
+    {
+      unloadPrim(path, node->object());
+    }
 
     // The item might already have been removed by a translator...
     if(node != m_primMapping.end() && node->path() == path)
@@ -472,7 +477,10 @@ void TranslatorContext::removeEntries(const SdfPathVector& itemsToRemove)
       m_primMapping.erase(node);
     }
 
-    m_proxyShape->removeUsdTransformChain(path, modifier, nodes::ProxyShape::kRequired);
+    if(isInTransformChain)
+    {
+      m_proxyShape->removeUsdTransformChain(path, modifier, nodes::ProxyShape::kRequired);
+    }
 
     ++iter;
   }
@@ -493,12 +501,7 @@ void TranslatorContext::preUnloadPrim(UsdPrim& prim, const MObject& primObj)
     if(translator)
     {
       TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("TranslatorContext::preUnloadPrim [preTearDown] prim=%s\n", prim.GetPath().GetText());
-
-      // call pretearDown if it hasn't been called before
-      if(!translator->isTearingDown())
-      {
-        translator->preTearDown(prim);
-      }
+      translator->preTearDown(prim);
     }
     else
     {
@@ -528,18 +531,14 @@ void TranslatorContext::unloadPrim(const SdfPath& path, const MObject& primObj)
     {
       TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("TranslatorContext::unloadPrim [tearDown] prim=%s\n", path.GetText());
 
-      // call pretearDown if it hasn't been called before
-      if(!translator->isTearingDown())
+      UsdPrim prim = stage->GetPrimAtPath(path);
+      if(prim)
       {
-        UsdPrim prim = stage->GetPrimAtPath(path);
-        if(prim)
-        {
-          translator->preTearDown(prim);
-        }
-        else
-        {
-          TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("TranslatorContext::preTearDown was skipped because the path '%s' was invalid\n", path.GetText());
-        }
+        translator->preTearDown(prim);
+      }
+      else
+      {
+        TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("TranslatorContext::preTearDown was skipped because the path '%s' was invalid\n", path.GetText());
       }
 
       MStatus status = translator->tearDown(path);
@@ -575,6 +574,105 @@ void TranslatorContext::unloadPrim(const SdfPath& path, const MObject& primObj)
   }
 }
 
+//----------------------------------------------------------------------------------------------------------------------
+bool TranslatorContext::isNodeAncestorOf(MObjectHandle ancestorHandle, MObjectHandle objectHandleToTest)
+{
+  if(!ancestorHandle.isValid() || !ancestorHandle.isAlive())
+  {
+    return false;
+  }
+
+  if(!objectHandleToTest.isValid() || !objectHandleToTest.isAlive())
+  {
+    return false;
+  }
+
+  MObject ancestorNode = ancestorHandle.object();
+  MObject nodeToTest = objectHandleToTest.object();
+  if(ancestorNode == nodeToTest)
+  {
+    return false;
+  }
+
+  MStatus parentStatus = MS::kSuccess;
+  MFnDagNode dagFn(nodeToTest, &parentStatus);
+
+  // If it is not a DAG node:
+  if(!parentStatus)
+  {
+    return false;
+  }
+
+  bool isParent = dagFn.isChildOf(ancestorNode, &parentStatus);
+  if(isParent)
+  {
+    return true;
+  }
+
+  unsigned int parentC = dagFn.parentCount(&parentStatus);
+  if(!parentStatus)
+  {
+    return false;
+  }
+
+  for(unsigned int i=0; i<parentC; ++i)
+  {
+    MObject parentNode = dagFn.parent(i, &parentStatus);
+    if(!parentStatus)
+    {
+      continue;
+    }
+
+    MObjectHandle parentHandle (parentNode);
+    if(isNodeAncestorOf(ancestorHandle, parentHandle))
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+bool TranslatorContext::isPrimInTransformChain(const SdfPath& path)
+{
+  TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("TranslatorContext::isPrimInTransformChain %s\n", path.GetText());
+
+  MDagPath proxyShapeTransformDagPath = m_proxyShape->parentTransform();
+  MObject proxyTransformNode = proxyShapeTransformDagPath.node();
+  MObjectHandle proxyTransformNodeHandle(proxyTransformNode);
+
+
+  // First test the Maya node that prim is for, this is for MayaReference..
+  MObjectHandle parentHandle;
+  if(getTransform(path, parentHandle))
+  {
+    if(isNodeAncestorOf(proxyTransformNodeHandle, parentHandle))
+    {
+      return true;
+    }
+  }
+
+  // Now test the Maya node that translator created, this is for DAG hierarchy transform|shape..
+  MObjectHandleArray mayaNodes;
+  bool everCreatedNodes = getMObjects(path, mayaNodes);
+  if(!everCreatedNodes)
+  {
+    return false;
+  }
+
+  size_t nodeCount = mayaNodes.size();
+  for(size_t i=0; i<nodeCount; ++i)
+  {
+    MObjectHandle node = mayaNodes[i];
+    if(isNodeAncestorOf(proxyTransformNodeHandle, node))
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
 //----------------------------------------------------------------------------------------------------------------------
 } // translators
 } // fileio

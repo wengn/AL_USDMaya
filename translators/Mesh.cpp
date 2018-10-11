@@ -24,13 +24,16 @@
 #include "maya/MFnMesh.h"
 #include "maya/MFnSet.h"
 #include "maya/MFileIO.h"
+#include "maya/MNodeClass.h"
 
 #include "AL/usdmaya/utils/DiffPrimVar.h"
 #include "AL/usdmaya/utils/MeshUtils.h"
 
 #include "AL/usdmaya/DebugCodes.h"
 #include "AL/usdmaya/fileio/translators/DagNodeTranslator.h"
+#include "AL/usdmaya/fileio/AnimationTranslator.h"
 #include "AL/usdmaya/nodes/ProxyShape.h"
+#include "AL/usdmaya/Metadata.h"
 #include "pxr/usd/usdGeom/mesh.h"
 
 #include "Mesh.h"
@@ -50,52 +53,33 @@ MStatus Mesh::initialize()
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-MStatus Mesh::import(const UsdPrim& prim, MObject& parent)
+MStatus Mesh::import(const UsdPrim& prim, MObject& parent, MObject& createdObj)
 {
   TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("Mesh::import prim=%s\n", prim.GetPath().GetText());
 
-  const AL::usdmaya::nodes::ProxyShape* proxyShape = context()->getProxyShape();
-
   const UsdGeomMesh mesh(prim);
-  TfToken orientation;
-  bool leftHanded = (mesh.GetOrientationAttr().Get(&orientation) && orientation == UsdGeomTokens->leftHanded);
 
-  MFnMesh fnMesh;
-  MFloatPointArray points;
-  MVectorArray normals;
-  MIntArray counts, connects;
-  AL::usdmaya::utils::gatherFaceConnectsAndVertices(mesh, points, normals, counts, connects, leftHanded);
+  TranslatorContextPtr ctx = context();
+  UsdTimeCode timeCode = (ctx && ctx->getForceDefaultRead()) ? UsdTimeCode::Default() : UsdTimeCode::EarliestTime();
 
-  MObject polyShape = fnMesh.create(points.length(), counts.length(), points, counts, connects, parent);
-
-  MIntArray normalsFaceIds;
-  normalsFaceIds.setLength(connects.length());
-  int32_t* normalsFaceIdsPtr = &normalsFaceIds[0];
-  if(normals.length())
+  bool parentUnmerged = false;
+  TfToken val;
+  if(prim.GetParent().GetMetadata(AL::usdmaya::Metadata::mergedTransform, &val))
   {
-    MIntArray normalsFaceIds;
-    normalsFaceIds.setLength(connects.length());
-    int32_t* normalsFaceIdsPtr = &normalsFaceIds[0];
-    if (normals.length() == fnMesh.numFaceVertices())
-    {
-      for (uint32_t i = 0, k = 0, n = counts.length(); i < n; i++)
-      {
-        for (uint32_t j = 0, m = counts[i]; j < m; j++, ++k)
-        {
-          normalsFaceIdsPtr[k] = i;
-        }
-      }
-    }
-    fnMesh.setFaceVertexNormals(normals, normalsFaceIds, connects);
+    parentUnmerged = (val == AL::usdmaya::Metadata::unmerged);
+  }
+  MString dagName = prim.GetName().GetString().c_str();
+  if(!parentUnmerged)
+  {
+    dagName += "Shape";
   }
 
-  MFnDagNode fnDag(polyShape);
-  fnDag.setName(std::string(prim.GetName().GetString() + std::string("Shape")).c_str());
-
-  AL::usdmaya::utils::applyHoleFaces(mesh, fnMesh);
-  AL::usdmaya::utils::applyVertexCreases(mesh, fnMesh);
-  AL::usdmaya::utils::applyEdgeCreases(mesh, fnMesh);
-  AL::usdmaya::utils::applyGlimpseSubdivParams(prim, fnMesh);
+  AL::usdmaya::utils::MeshImportContext importContext(mesh, parent, dagName, timeCode);
+  importContext.applyVertexNormals();
+  importContext.applyHoleFaces();
+  importContext.applyVertexCreases();
+  importContext.applyEdgeCreases();
+  importContext.applyGlimpseSubdivParams();
 
   MObject initialShadingGroup;
   DagNodeTranslator::initialiseDefaultShadingGroup(initialShadingGroup);
@@ -103,16 +87,45 @@ MStatus Mesh::import(const UsdPrim& prim, MObject& parent)
   MStatus status;
   MFnSet fn(initialShadingGroup, &status);
   AL_MAYA_CHECK_ERROR(status, "Unable to attach MfnSet to initialShadingGroup");
-  fn.addMember(polyShape);
-  AL::usdmaya::utils::applyPrimVars(mesh, fnMesh, counts, connects);
-  context()->addExcludedGeometry(prim.GetPath());
+  
+  createdObj = importContext.getPolyShape();
+  fn.addMember(createdObj);
+  importContext.applyPrimVars();
 
-  MFnDagNode mayaNode(parent);
-  MDagPath mayaDagPath;
-  mayaNode.getPath(mayaDagPath);
-
-  context()->insertItem(prim, parent);
+  if (ctx)
+  {
+    ctx->addExcludedGeometry(prim.GetPath());
+    ctx->insertItem(prim, createdObj);
+  }
   return MStatus::kSuccess;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+UsdPrim Mesh::exportObject(UsdStageRefPtr stage, MDagPath dagPath, const SdfPath& usdPath, const ExporterParams& params)
+{
+  if(!params.m_meshes)
+    return UsdPrim();
+
+  UsdGeomMesh mesh = UsdGeomMesh::Define(stage, usdPath);
+
+  MStatus status;
+  MFnMesh fnMesh(dagPath, &status);
+  AL_MAYA_CHECK_ERROR2(status, MString("unable to attach function set to mesh") + dagPath.fullPathName());
+  if(status)
+  {
+    UsdAttribute pointsAttr = mesh.GetPointsAttr();
+    if (params.m_animTranslator && AnimationTranslator::isAnimatedMesh(dagPath))
+    {
+      params.m_animTranslator->addMesh(dagPath, pointsAttr);
+    }
+    uint32_t options = 0;
+    if(params.m_dynamicAttributes)
+    {
+      options |= kDynamicAttributes;
+    }
+    writeEdits(dagPath, mesh, options);
+  }
+  return mesh.GetPrim();
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -134,7 +147,12 @@ MStatus Mesh::update(const UsdPrim& path)
 //----------------------------------------------------------------------------------------------------------------------
 MStatus Mesh::preTearDown(UsdPrim& prim)
 {
-  TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("MeshTranslator::preTearDown prim=%s\n", prim.GetPath().GetText());
+  TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("MeshTranslator::preTearDown prim=%s\n", prim.GetPath().GetText());\
+  if(!prim.IsValid())
+  {
+    TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("Mesh::preTearDown prim invalid\n");
+    return MS::kFailure;
+  }
   TranslatorBase::preTearDown(prim);
 
   /* TODO
@@ -149,88 +167,54 @@ MStatus Mesh::preTearDown(UsdPrim& prim)
    * force translated into Maya.
    */
   TfNotice::Block block;
-  writeEdits(prim);
-
-  return MS::kSuccess;
-}
-
-//----------------------------------------------------------------------------------------------------------------------
- void Mesh::writeEdits(UsdPrim& prim)
-{
-
-  if(!prim.IsValid())
-  {
-    TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("Mesh::writeEdits prim invalid\n");
-    return;
-  }
-
   // Write the overrides back to the path it was imported at
   MObjectHandle obj;
   context()->getMObject(prim, obj, MFn::kInvalid);
-
   if(obj.isValid())
   {
-    UsdGeomMesh geomPrim(prim);
-
     MFnDagNode fn(obj.object());
     MDagPath path;
     fn.getPath(path);
-
     MStatus status;
     MFnMesh fnMesh(path, &status);
-    AL_MAYA_CHECK_ERROR2(status, MString("unable to attach function set to mesh") + path.fullPathName());
+    AL_MAYA_CHECK_ERROR(status, MString("unable to attach function set to mesh: ") + path.fullPathName());
 
-    if(status)
-    {
-      const uint32_t dif_geom = AL::usdmaya::utils::diffGeom(geomPrim, fnMesh, UsdTimeCode::Default(), AL::usdmaya::utils::kAllComponents);
-      const uint32_t dif_mesh = AL::usdmaya::utils::diffFaceVertices(geomPrim, fnMesh, UsdTimeCode::Default(), AL::usdmaya::utils::kAllComponents);
-
-      if(dif_geom & AL::usdmaya::utils::kPoints)
-      {
-        UsdAttribute pointsAttr = geomPrim.GetPointsAttr();
-        AL::usdmaya::utils::copyVertexData(fnMesh, pointsAttr);
-      }
-
-      if(dif_geom & AL::usdmaya::utils::kNormals)
-      {
-        UsdAttribute normalsAttr = geomPrim.GetNormalsAttr();
-        AL::usdmaya::utils::copyNormalData(fnMesh, normalsAttr);
-      }
-
-      if(dif_mesh & (AL::usdmaya::utils::kFaceVertexIndices | AL::usdmaya::utils::kFaceVertexCounts))
-      {
-        AL::usdmaya::utils::copyFaceConnectsAndPolyCounts(geomPrim, fnMesh, dif_mesh);
-      }
-
-      if(dif_mesh & AL::usdmaya::utils::kHoleIndices)
-      {
-        AL::usdmaya::utils::copyInvisibleHoles(geomPrim, fnMesh);
-      }
-
-      if(dif_mesh & (AL::usdmaya::utils::kCornerIndices | AL::usdmaya::utils::kCornerSharpness))
-      {
-        AL::usdmaya::utils::copyCreaseVertices(geomPrim, fnMesh);
-      }
-
-      if(dif_mesh & (AL::usdmaya::utils::kCreaseIndices | AL::usdmaya::utils::kCreaseWeights | AL::usdmaya::utils::kCreaseLengths))
-      {
-        AL::usdmaya::utils::copyCreaseEdges(geomPrim, fnMesh);
-      }
-
-
-      AL::usdmaya::utils::copyUvSetData(geomPrim, fnMesh, false, true);
-
-      AL::usdmaya::utils::copyColourSetData(geomPrim, fnMesh, true);
-
-      DgNodeTranslator::copyDynamicAttributes(obj.object(), prim);
-    }
+    UsdGeomMesh geomPrim(prim);
+    writeEdits(path, geomPrim, kPerformDiff | kDynamicAttributes);
   }
   else
   {
     TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("Unable to find the corresponding Maya Handle at prim path '%s'\n", prim.GetPath().GetText());
+    return MS::kFailure;
   }
-
+  return MS::kSuccess;
 }
+
+//----------------------------------------------------------------------------------------------------------------------
+void Mesh::writeEdits(MDagPath& dagPath, UsdGeomMesh& geomPrim, uint32_t options)
+{
+  TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("MeshTranslator::writing edits to prim='%s'\n", geomPrim.GetPath().GetText());
+  UsdTimeCode t = UsdTimeCode::Default();
+  AL::usdmaya::utils::MeshExportContext context(dagPath, geomPrim, t, options & kPerformDiff);
+  if(context)
+  {
+    context.copyVertexData(t);
+    context.copyGlimpseTesselationAttributes();
+    context.copyNormalData(t);
+    context.copyFaceConnectsAndPolyCounts();
+    context.copyInvisibleHoles();
+    context.copyCreaseVertices();
+    context.copyCreaseEdges();
+    context.copyUvSetData();
+    context.copyColourSetData();
+    if(options & kDynamicAttributes)
+    {
+      UsdPrim prim = geomPrim.GetPrim();
+      DgNodeTranslator::copyDynamicAttributes(dagPath.node(), prim);
+    }
+  }
+}
+
 
 //----------------------------------------------------------------------------------------------------------------------
 } // namespace translators
