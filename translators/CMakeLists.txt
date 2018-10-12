@@ -16,6 +16,7 @@ add_library(${TRANSLATORS_PACKAGE}
     Mesh.cpp
     NurbsCurve.cpp
     FrameRange.cpp
+    DirectionalLight.cpp #naiqi's change
 )
 
 target_compile_definitions(${TRANSLATORS_PACKAGE}

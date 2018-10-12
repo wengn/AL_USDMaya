@@ -295,6 +295,11 @@ void ProxyShapePostLoadProcess::createSchemaPrims(
       }
 
       fileio::translators::TranslatorRefPtr translator = translatorManufacture.get(prim.GetTypeName());
+
+      //Naiqi's test
+      std::string currentType = prim.GetTypeName().GetString();
+      currentType = currentType + "test";
+
       TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ProxyShapePostLoadProcess::createSchemaPrims prim=%s\n", prim.GetPath().GetText());
 
       //if(!context->hasEntry(prim.GetPath(), prim.GetTypeName()))
