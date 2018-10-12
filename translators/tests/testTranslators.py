@@ -410,7 +410,7 @@ class TestTranslator(unittest.TestCase):
         self.assertEqual('alight',mc.listRelatives(mc.listRelatives(mc.ls('directionalLightShape1')[0], parent=1)[0],parent=1)[0])
 
     def testDirectionalLight_TranslateRoundTrip(self):
- 	# setup scene with directional light
+        # setup scene with directional light
      
         # Create directional light in Maya and export a .usda file
         mel.eval('defaultDirectionalLight(3, 1,1,0, "0", 0,0,0, 0)')
@@ -427,7 +427,7 @@ class TestTranslator(unittest.TestCase):
         self.assertEqual(0.25, mc.getAttr('directionalLightShape1.lightAngle'))
         self.assertEqual((1.0, 1.0, 0), mc.getAttr('directionalLightShape1.color')[0])
         self.assertEqual(3, mc.getAttr('directionalLightShape1.intensity')
-	self.assertEqual((6.0, 7.0, 8.0), mc.getAttr('directionalLightShape1.pointWorld')[0])
+        self.assertEqual((6.0, 7.0, 8.0), mc.getAttr('directionalLightShape1.pointWorld')[0])
 
     def testFrameRange_TranslatorExists(self):
         """

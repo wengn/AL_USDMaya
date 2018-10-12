@@ -17,7 +17,7 @@
 
 #include "pxr/pxr.h"
 #include "pxr/usd/usd/prim.h"
-#include "pxr/usd/usdLux/light.h"  //Naiqi's change
+#include "pxr/usd/usdLux/light.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -29,7 +29,7 @@ class TfToken;
 class UsdAttribute;
 class UsdPrim;
 class UsdGeomCamera;
-class UsdLuxDistantLight; //Naiqi's change
+class UsdLuxDistantLight;
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
