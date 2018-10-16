@@ -154,12 +154,6 @@ MStatus DirectionalLight::preTearDown(UsdPrim& prim)
     }
     TranslatorBase::preTearDown(prim);
 
-    if(!prim.IsValid())
-    {
-      TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("DirectionalLightTranslator prim invalid\n");
-      return MStatus::kFailure;
-    }
-
     // Write the overrides back to the path it was imported at
     MStatus status = MS::kSuccess;
     MObjectHandle handleToLight;
