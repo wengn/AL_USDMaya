@@ -102,16 +102,10 @@ MStatus DirectionalLight::import(const UsdPrim& prim, MObject& parent, MObject& 
     AL_MAYA_CHECK_ERROR2(status, MString("unable to create directional light "));
 
     TranslatorContextPtr ctx = context();
-    UsdTimeCode timeCode = UsdTimeCode::EarliestTime();
-    bool forceDefaultRead = false;
+
     if(ctx)
     {
       ctx->insertItem(prim, createObj);
-      if(ctx->getForceDefaultRead())
-      {
-        timeCode = UsdTimeCode::Default();
-        forceDefaultRead = true;  //This is not used, may need to change
-      }
     }
     status = updateMayaAttributes(createObj, prim);
 
@@ -203,17 +197,16 @@ MStatus DirectionalLight::updateMayaAttributes(MObject mayaObj, const UsdPrim& p
 
     const char* const errorString = "DirectionalLightTranslator: error setting maya directional light parameters";
 
-    //Currently only support UsdTimeCode::default
     UsdLuxDistantLight usdDistLight(prim);
 
-    GfVec3f pointWorld;
+    GfVec3f pointWorld(1.0, 1.0, 1.0);
     float angle = 0.0;
     float intensity = 0.0;
     float exposure = 0.0;
     float diffuse = 0.0;
     float specular = 0.0;
     bool normalize = false;
-    GfVec3f color;
+    GfVec3f color(1.0, 1.0, 1.0);
     bool enableColorTemperature = false;
 
     if(usdDistLight.GetPrim().HasAttribute(TfToken("pointWorld")))
@@ -252,7 +245,7 @@ bool DirectionalLight::updateUsdPrim(const UsdStageRefPtr& stage, const SdfPath&
     float diffuse = 1.0;
     float specular = 1.0;
     bool normalize = false;
-    float color[3] = {0.0,0.0,0.0};
+    float color[3] = {1.0,1.0,1.0};
     bool enableColorTemperature = false;
 
     AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getVec3(mayaObj, m_pointWorld, pointWorld), errorString);
