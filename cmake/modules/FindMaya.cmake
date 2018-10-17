@@ -165,7 +165,7 @@ find_path(MAYA_DEVKIT_INC_DIR
         "Maya's devkit headers path"
 )
 
-
+list(APPEND MAYA_INCLUDE_DIRS ${MAYA_DEVKIT_INC_DIR})
 
 foreach(MAYA_LIB
     OpenMaya
