@@ -165,11 +165,7 @@ find_path(MAYA_DEVKIT_INC_DIR
         "Maya's devkit headers path"
 )
 
-#Naiqi's change
-#list(APPEND MAYA_INCLUDE_DIRS ${MAYA_DEVKIT_INC_DIR})
-if(NOT "${MAYA_DEVKIT_INC_DIR}" STREQUAL "MAYA_DEVKIT_INC_DIR-NOTFOUND")
-   list(APPEND MAYA_INCLUDE_DIRS ${MAYA_DEVKIT_INC_DIR})
-endif()
+
 
 foreach(MAYA_LIB
     OpenMaya
