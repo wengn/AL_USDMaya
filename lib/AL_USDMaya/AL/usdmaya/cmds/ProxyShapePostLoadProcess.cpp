@@ -403,6 +403,7 @@ MStatus ProxyShapePostLoadProcess::initialise(nodes::ProxyShape* ptrNode)
   MFnDagNode fn(ptrNode->thisMObject());
   MDagPath proxyTransformPath;
   fn.getPath(proxyTransformPath);
+//  MString proxyPath = proxyTransformPath.fullPathName(); //Naiqi's test
 
   // make sure we unload all references prior to reloading them again
   ptrNode->unloadMayaReferences();

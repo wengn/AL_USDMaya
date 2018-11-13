@@ -220,7 +220,7 @@ MStatus Camera::import(const UsdPrim& prim, MObject& parent, MObject& createdObj
 {
   const char* const errorString = "CameraTranslator: error setting maya camera parameters";
   UsdGeomCamera usdCamera(prim);
-  
+
   MStatus status;
   MFnDagNode fn;
   MString name(prim.GetName().GetText() + MString("Shape"));

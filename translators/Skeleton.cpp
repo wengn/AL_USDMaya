@@ -14,22 +14,69 @@
 // limitations under the License.
 //
 
+
 #include "Skeleton.h"
+#include "SkeletonUtils.h"
 
 #include "pxr/usd/usdSkel/skeleton.h"
+#include "pxr/usd/usdSkel/skeletonQuery.h"
+
+
+#include "AL/usdmaya/utils/DgNodeHelper.h"
+#include "AL/usdmaya/fileio/AnimationTranslator.h"
+#include "AL/usdmaya/fileio/translators/DgNodeTranslator.h"
+
+#include "maya/MFnIkJoint.h"
 
 namespace AL {
 namespace usdmaya {
 namespace fileio {
 namespace translators {
 
-AL_USDMAYA_DEFINE_TRANSLATOR(Skeleton, pxr::UsdSkelSkeleton)
+AL_USDMAYA_DEFINE_TRANSLATOR(Skeleton, PXR_NS::UsdSkelSkeleton)
 
 //----------------------------------------------------------------------------------------------------------------------
 MStatus Skeleton::initialize()
 {
     MStatus status = MS::kSuccess;
     return status;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+MStatus Skeleton::import(const UsdPrim& prim, MObject& parent, MObject& createObj)
+{
+  MStatus status = MS::kSuccess;
+
+
+  UsdSkelSkeleton skel(prim);
+  if(!prim.IsValid())
+  {
+    TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("SkeletonTranslator::import prim invalid\n");
+    return MS::kFailure;
+  }
+
+  TranslatorContextPtr ctx = context();
+  if(UsdSkelSkeletonQuery skelQuery = m_cache.GetSkelQuery(skel))
+  {
+    MObject parentNode;
+ /*   if(ctx->getMObject(skel.GetPrim().GetPath().GetParentPath(), parentNode, MFn::kJoint))  //TODO:This needs to be tested, what if its parent is root of the scene or skelRoot
+    {
+      //Build out a joint hierarchy
+      std::vector<MObject> joints;
+      if(SkeletonUtils::createJointHierarchy(skelQuery, parentNode, ctx, &joints))
+      {
+          //Create Bind pose
+      }
+    }
+*/
+  }
+
+
+
+
+ // status = updateMayaAttributes(createObj, prim);
+
+  return status;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -45,6 +92,7 @@ MStatus Skeleton::tearDown(const SdfPath& path)
   MStatus status = MS::kSuccess;
   return status;
 }
+
 
 //----------------------------------------------------------------------------------------------------------------------
 } // translators

@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "pxr/usd/usdSkel/cache.h"
+
 #include "AL/usdmaya/fileio/translators/TranslatorBase.h"
 #include "AL/usd/utils/ForwardDeclares.h"
 
@@ -35,7 +37,7 @@ public:
   AL_USDMAYA_DECLARE_TRANSLATOR(Skeleton);
 
   MStatus initialize() override;
-//  MStatus import(const UsdPrim& prim, MObject& parent, MObject& createObj) override;
+  MStatus import(const UsdPrim& prim, MObject& parent, MObject& createObj) override;
 //  UsdPrim exportObject(UsdStageRefPtr stage, MDagPath dagPath, const SdfPath& usdPath,
 //                       const ExporterParams& params) override;
 //  MStatus preTearDown(UsdPrim& prim) override;
@@ -51,6 +53,7 @@ public:
 
 private:
 
+  UsdSkelCache m_cache;
 };
 
 } // translators

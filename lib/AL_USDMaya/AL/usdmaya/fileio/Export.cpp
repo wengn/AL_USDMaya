@@ -747,6 +747,8 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
 
     fnTransform.setObject(transformPath);
 
+    MString transformStr = transformPath.fullPathName();//Naiqi's test
+
     // Make sure we haven't seen this transform before.
     bool transformHasBeenExported = m_impl->contains(fnTransform);
     if(transformHasBeenExported)
@@ -773,6 +775,14 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
       if (m_params.m_meshUV && defaultPrim.IsEmpty())
       {
         defaultPrim = usdPath;
+      }
+
+      //Naiqi's test
+      if(transformPath.node().hasFn(MFn::kJoint))
+      {
+          int test =1 ;
+          std::cout<<"This is coming to special case"<<std::endl;
+        //This needs special handling
       }
 
       if(transformPath.node().hasFn(MFn::kIkEffector))
