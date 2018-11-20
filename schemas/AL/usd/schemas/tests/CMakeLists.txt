@@ -20,6 +20,7 @@ target_include_directories(testMayaSchemas
 target_link_libraries(testMayaSchemas
     ${SCHEMAS_PACKAGE}
     ${GTEST_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}  #Naiqi's change
     )
 
 install(TARGETS testMayaSchemas DESTINATION bin)

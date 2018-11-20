@@ -121,6 +121,10 @@ public:
   virtual UsdPrim exportObject(UsdStageRefPtr stage, MDagPath dagPath, const SdfPath& usdPath, const ExporterParams& params)
     { return UsdPrim(); }
 
+  //Naiqi's change
+  virtual UsdPrim exportObject(UsdStageRefPtr stage, MObject obj, const SdfPath& usdPath, const ExporterParams& params)
+    { return UsdPrim(); }
+
   /// \brief  If your node needs to set up any relationships after import (for example, adding the node to a set, or
   ///         making attribute connections), then all of that work should be performed here.
   /// \param  prim the prim we are importing.

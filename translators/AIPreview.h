@@ -1,5 +1,5 @@
 //
-// Copyright 2017 Animal Logic
+// Copyright 2018 Original Force
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.//
@@ -13,55 +13,45 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-
 #pragma once
+
 #include "AL/usdmaya/fileio/translators/TranslatorBase.h"
+#include "AL/usd/utils/ForwardDeclares.h"
 
+#include "pxr/usd/usd/stage.h"
+#include "pxr/usd/usdShade/shader.h"
 
-namespace AL{
-namespace usdmaya{
-namespace fileio{
-namespace translators{
+namespace AL {
+namespace usdmaya {
+namespace fileio {
+namespace translators {
 
 //----------------------------------------------------------------------------------------------------------------------
-/// \brief Class to translate a mesh in and out of maya.
+/// \brief Class to translate arnorld attributes in and out of maya.
 //----------------------------------------------------------------------------------------------------------------------
-class Mesh : public TranslatorBase
+class AIPreview
+  : public TranslatorBase
 {
 public:
-  AL_USDMAYA_DECLARE_TRANSLATOR(Mesh);
-private:
+
+  AL_USDMAYA_DECLARE_TRANSLATOR(AIPreview);
+
   MStatus initialize() override;
   MStatus import(const UsdPrim& prim, MObject& parent, MObject& createdObj) override;
-  MStatus postImport(const UsdPrim& prim) override; //Naiqi's change
-  UsdPrim exportObject(UsdStageRefPtr stage, MDagPath dagPath, const SdfPath& usdPath,
+  UsdPrim exportObject(UsdStageRefPtr stage, MObject obj, const SdfPath& usdPath,
                        const ExporterParams& params) override;
   MStatus tearDown(const SdfPath& path) override;
-  MStatus update(const UsdPrim& path) override;
-  MStatus preTearDown(UsdPrim& prim) override;
 
-  bool supportsUpdate() const override
-    { return false; } // Turned off supportsUpdate to get tearDown working correctly
-  bool importableByDefault() const override
-    { return false; }
-
-  ExportFlag canExport(const MObject& obj) override
-    { return obj.hasFn(MFn::kMesh) ? ExportFlag::kFallbackSupport : ExportFlag::kNotSupported; }
+  ExportFlag canExport(const MObject& obj) override;
+  MStatus updateMayaAttributes(MObject to, UsdShadeShader& usdShader);
 
 private:
-  enum WriteOptions
-  {
-    kPerformDiff = 1 << 0,
-    kDynamicAttributes = 1 << 1
-  };
-  void writeEdits(MDagPath& dagPath, UsdGeomMesh& geomPrim, uint32_t options = kDynamicAttributes);
 
 };
 
 //----------------------------------------------------------------------------------------------------------------------
-} // namespace translators
-} // namespace fileio
-} // namespace usdmaya
-} // namespace AL
+} // translators
+} // fileio
+} // usdmaya
+} // AL
 //----------------------------------------------------------------------------------------------------------------------
-
