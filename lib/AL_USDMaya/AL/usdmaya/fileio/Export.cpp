@@ -48,6 +48,8 @@
 #include "pxr/usd/usdGeom/nurbsCurves.h"
 #include "pxr/base/gf/transform.h"
 #include "pxr/usd/usdGeom/camera.h"
+#include "pxr/usd/usdShade/material.h"
+#include "pxr/usd/usdShade/materialBindingAPI.h"
 
 #include <unordered_set>
 #include <algorithm>
@@ -828,6 +830,8 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
               refType = m_params.m_mergeTransforms ? kShapeReference : kTransformReference;
             }
             exportShapeProc(shapePath, fnTransform, shapeUsdPath, refType);
+
+            checkShapeShading(shapePath, shapeUsdPath);
           }
           else
           {
@@ -862,6 +866,216 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
 
     it.next();
   }
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+void Export::checkShapeShading(MDagPath shapePath, SdfPath& usdPath)
+{
+  //Naiqi's test
+  // Find its connecting node, if there is shading node and it is Arnold shading
+  MStatus status;
+  MString dagPathStr = shapePath.fullPathName();
+
+  MFnMesh meshNode(shapePath, &status);
+  AL_MAYA_CHECK_ERROR2(status, MString("Wrong creating meshNode"));
+
+  if(shapePath.isInstanced())
+  {
+    MObjectArray shaderEngines;
+    MIntArray indices;
+    for(unsigned int i = 0; i < shapePath.instanceNumber(); i++)
+    {
+      meshNode.getConnectedShaders(i,shaderEngines,indices);
+      for(unsigned int j = 0; j < shaderEngines.length(); j++)
+      {
+        //Find the arnold shader
+        MFnDependencyNode shaderEnFn(shaderEngines[j]);
+
+        std::string shaderEnName(shaderEnFn.name().asChar());
+        if(shaderEnName.find("ai") == std::string::npos)
+          continue;
+        MPlug surfaceShaderPlug = shaderEnFn.findPlug(MString("surfaceShader"),&status);
+        MPlugArray srcPlugs;
+        surfaceShaderPlug.connectedTo(srcPlugs, true,false, &status);
+
+        MObjectHandle aiSSNode(srcPlugs[0].node());
+        if(std::find(m_aiSurfaceShaders.begin(), m_aiSurfaceShaders.end(), aiSSNode) == m_aiSurfaceShaders.end())
+        {
+           m_aiSurfaceShaders.push_back(aiSSNode);
+        }
+        m_shapeDagPaths.push_back(shapePath);
+        m_shapeUsdPaths.push_back(usdPath);
+      }
+    }
+  }else
+  {
+    MObjectArray shaderEngines;
+    MIntArray indices;
+    meshNode.getConnectedShaders(0,shaderEngines,indices);
+    for(unsigned int j = 0; j < shaderEngines.length(); j++)
+    {
+      //Find the arnold shader
+      MFnDependencyNode shaderEnFn(shaderEngines[j]);
+
+      std::string shaderEnName(shaderEnFn.name().asChar());
+      if(shaderEnName.find("ai") == std::string::npos)
+        continue;
+
+      MPlug surfaceShaderPlug = shaderEnFn.findPlug(MString("surfaceShader"),&status);
+      MPlugArray srcPlugs;
+      surfaceShaderPlug.connectedTo(srcPlugs, true,false, &status);
+
+      MObjectHandle aiSSNode(srcPlugs[0].node());
+      if(std::find(m_aiSurfaceShaders.begin(), m_aiSurfaceShaders.end(), aiSSNode) == m_aiSurfaceShaders.end())
+      {
+        m_aiSurfaceShaders.push_back(aiSSNode);
+      }
+      m_shapeDagPaths.push_back(shapePath);
+      m_shapeUsdPaths.push_back(usdPath);
+     }
+ }
+
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+void Export::exportAIShader()
+{
+  MStatus status = MS::kSuccess;
+  if(m_aiSurfaceShaders.size()== 0)
+    return;
+
+  //This material and shader will be written to the root path
+  for(std::vector<MObjectHandle>::iterator it = m_aiSurfaceShaders.begin(); it != m_aiSurfaceShaders.end(); ++it)
+  {
+    UsdPrim matPrim;
+    translators::TranslatorManufacture::RefPtr translatorPtr = m_translatorManufacture.get((*it).object());
+    if (translatorPtr)
+    {
+      SdfPath emptyPath;
+      matPrim = translatorPtr->exportObject(m_impl->stage(), (*it).object(), emptyPath, m_params);
+      UsdShadeMaterial usdMat(matPrim);
+      if(!usdMat)
+          std::cout<<"UsdShadeMaterial is not created correctly"<<std::endl;
+
+      std::string newMatNameStr = matPrim.GetName();
+      std::string shadingNodeName = newMatNameStr.substr(0, newMatNameStr.find('_'));
+
+      // Travese all the m_shapeDagPaths list and find connected shape
+      // Bind the material to the shape
+      for(std::vector<MDagPath>::iterator it = m_shapeDagPaths.begin(); it != m_shapeDagPaths.end(); ++it)
+      {
+        MFnMesh meshFn(*it, &status);
+        MObjectArray shaders;
+        MIntArray indices;
+
+        // It does not matter whether this is instanced, as all the related dag path shapes have been added into this list
+        meshFn.getConnectedShaders(0,shaders, indices);
+        for(unsigned int j = 0; j < shaders.length(); j++)
+        {
+          //Find the arnold shader
+          MFnDependencyNode shadersFn(shaders[j]);
+          std::string curShaderStr = std::string(shadersFn.name().asChar());
+          if(std::string(shadersFn.name().asChar()).find(shadingNodeName) == std::string::npos)
+            continue;
+
+          UsdPrim shapePrim = m_impl->stage()->GetPrimAtPath(m_shapeUsdPaths[it - m_shapeDagPaths.begin()]);
+          if(!shapePrim)
+              std::cout<<"Shape prim is not valid"<<std::endl;
+          UsdShadeMaterialBindingAPI bindAPI(shapePrim);
+          if(usdMat && shapePrim)
+            bindAPI.Bind(usdMat, UsdShadeTokens->fallbackStrength, UsdShadeTokens->preview);
+        }
+      }
+    }
+  }
+
+/*
+  // Material is a special case there is no one-on-one relationship between a sdfPath and a MObject in the above exportObject() call
+  // Traverse the m_shapePaths list and bind the shape to corresponding material
+  for(std::vector<MDagPath>::iterator it = m_shapeDagPaths.begin(); it != m_shapeDagPaths.end(); ++it)
+  {
+    MFnMesh meshFn(*it, &status);
+    if((*it).isInstanced())
+    {
+      for(unsigned int i = 0; i < (*it).instanceNumber(); i++)
+      {
+        MObjectArray shaders;
+        MIntArray indices;
+        meshFn.getConnectedShaders(i,shaders, indices);
+        for(unsigned int j = 0; j < shaders.length(); j++)
+        {
+          //Find the arnold shader
+          MFnDependencyNode shadersFn(shaders[j]);
+          if(std::string(shadersFn.name().asChar()).find("ai") == std::string::npos)
+            continue;
+
+          SdfPath matPath(SdfPath::AbsoluteRootPath().GetString() + std::string(shadersFn.name(&status).asChar()) + "_" + "Mat");
+          UsdShadeMaterial usdMat(m_impl->stage()->GetPrimAtPath(matPath));
+          UsdPrim shapePrim = m_impl->stage()->GetPrimAtPath(m_shapeUsdPaths[it - m_shapeDagPaths.begin()]);
+          if(!shapePrim)
+          {
+            UsdShadeMaterialBindingAPI bindAPI(shapePrim);
+
+            if(!usdMat)
+              bindAPI.Bind(usdMat, UsdShadeTokens->fallbackStrength, UsdShadeTokens->preview);
+            else
+            {
+              std::cout<<"material is not valid"<<std::endl;
+            }
+          }else
+          {
+              std::cout<<"the prim is not valid"<<std::endl;
+          }
+        }
+      }
+    }
+    else
+    {
+      MObjectArray shaders;
+      MIntArray indices;
+      meshFn.getConnectedShaders(0,shaders, indices);
+      for(unsigned int j = 0; j < shaders.length(); j++)
+      {
+        //Find the arnold shader
+        MFnDependencyNode shadersFn(shaders[j]);
+        if(std::string(shadersFn.name().asChar()).find("ai") == std::string::npos)
+          continue;
+
+        SdfPath matPath(SdfPath::AbsoluteRootPath().GetString() + std::string(shadersFn.name(&status).asChar()) + "_" + "Mat");
+        std::string matStr = matPath.GetString();
+        UsdPrim matPrim = m_impl->stage()->GetPrimAtPath(matPath);
+        UsdShadeMaterial usdMat(m_impl->stage()->GetPrimAtPath(matPath));
+
+        SdfPath testSdf = m_shapeUsdPaths[it - m_shapeDagPaths.begin()];
+        std::string sdfStr = testSdf.GetString();
+        UsdPrim shapePrim = m_impl->stage()->GetPrimAtPath(m_shapeUsdPaths[it - m_shapeDagPaths.begin()]);
+        MString testDag = (*it).fullPathName();
+        std::string testDagStr(testDag.asChar());
+
+
+        if(!shapePrim && (!matPrim))
+        {
+          UsdShadeMaterialBindingAPI bindAPI(shapePrim);
+
+          if(!usdMat)
+            bindAPI.Bind(usdMat, UsdShadeTokens->fallbackStrength, UsdShadeTokens->preview);
+          else
+          {
+            std::cout<<"material is not valid"<<std::endl;
+          }
+        }else
+        {
+            std::cout<<"the prim is not valid"<<std::endl;
+        }
+
+
+
+        UsdShadeMaterialBindingAPI bindAPI(shapePrim);
+        //bindAPI.Bind(usdMat, UsdShadeTokens->fallbackStrength, UsdShadeTokens->preview);
+      }
+    }
+  }
+  */
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -909,6 +1123,8 @@ void Export::doExport()
       objects.append(obj);
     }
   }
+
+  exportAIShader(); //Naiqi's test
 
   if(m_params.m_animTranslator)
   {

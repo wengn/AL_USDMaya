@@ -35,6 +35,8 @@
 #include "AL/usdmaya/nodes/ProxyShape.h"
 #include "AL/usdmaya/Metadata.h"
 #include "pxr/usd/usdGeom/mesh.h"
+#include "pxr/usd/usdShade/materialBindingAPI.h" //Naiqi's change
+#include "pxr/usd/usdShade/tokens.h"
 
 #include "Mesh.h"
 
@@ -215,6 +217,49 @@ void Mesh::writeEdits(MDagPath& dagPath, UsdGeomMesh& geomPrim, uint32_t options
   }
 }
 
+//Naiqi's change
+//----------------------------------------------------------------------------------------------------------------------
+MStatus Mesh::postImport(const UsdPrim& prim)
+{
+  MStatus status = MS::kSuccess;
+
+  //TODO: check if it is a valid geomPrim
+  UsdShadeMaterialBindingAPI bindAPI(prim);
+  SdfPath matPath = bindAPI.GetDirectBinding(UsdShadeTokens->preview).GetMaterialPath();
+
+  MSelectionList matList;
+  MGlobal::getSelectionListByName(MString(matPath.GetName().c_str()), matList);
+  if( matList.length() > 1)
+  {
+    // Assume there are no more than one material with the same name
+    std::cout<<"There are more than one material with the same name: "<<matPath.GetName().c_str()<<std::endl;
+    return MS::kFailure;
+  }
+
+  MObject matNode;
+  status = matList.getDependNode(0, matNode);
+  MFnDependencyNode matNodeFn(matNode, &status);
+
+  MObjectHandle shapeNode;
+  context()->getMObject(prim.GetPath(), shapeNode, MFn::kMesh);
+  if( shapeNode.isValid())
+  {
+    // TODO: need to consider situations that part of the shape is in the set
+    MFnDependencyNode shapeFn(shapeNode.object(), &status);
+    MObject instObjGroupsAttr = shapeFn.attribute("instObjGroups");
+    MObject dagSetMemberAttr = matNodeFn.attribute("dagSetMembers");
+
+    MDGModifier dgMod;
+    status = dgMod.connect(shapeNode.object(), instObjGroupsAttr, matNode, dagSetMemberAttr);
+    status = dgMod.doIt();
+  }
+  else
+  {
+      TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("Mesh::postImport prim=%s\n", prim.GetPath().GetText());
+      return MS::kFailure;
+  }
+  return status;
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 } // namespace translators

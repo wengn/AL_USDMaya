@@ -1,4 +1,4 @@
-list(APPEND DEPENDANT_LIBRARIES AL_USDMaya ${SCHEMAS_PACKAGE} gf plug tf)
+list(APPEND DEPENDANT_LIBRARIES AL_USDMaya ${SCHEMAS_PACKAGE} gf plug tf usdImaging)
 
 set(DIRECTORY_PATH AL/usdmaya/fileio/translators)
 
@@ -16,6 +16,7 @@ add_library(${TRANSLATORS_PACKAGE}
     Mesh.cpp
     NurbsCurve.cpp
     FrameRange.cpp
+    AIPreview.cpp
 )
 
 target_compile_definitions(${TRANSLATORS_PACKAGE}
