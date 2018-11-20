@@ -1,4 +1,4 @@
-list(APPEND DEPENDANT_LIBRARIES AL_USDMaya AL_USDMayaSchemas gf plug tf)
+list(APPEND DEPENDANT_LIBRARIES AL_USDMaya AL_USDMayaSchemas gf plug tf usdImaging)
 
 set(DIRECTORY_PATH AL/usdmaya/fileio/translators)
 
@@ -17,6 +17,7 @@ add_library(${TRANSLATORS_PACKAGE}
     NurbsCurve.cpp
     FrameRange.cpp
     DirectionalLight.cpp
+    AIPreview.cpp
 )
 
 set(arg_PUBLIC_HEADER_FILES

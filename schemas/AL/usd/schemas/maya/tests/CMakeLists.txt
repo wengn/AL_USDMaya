@@ -25,6 +25,7 @@ target_link_libraries(testMayaSchemas
     vt
     plug
     ${Boost_PYTHON_LIBRARY}
+    ${CMAKE_THREAD_LIBS_INIT}  #Naiqi's change
     )
 
 install(TARGETS testMayaSchemas DESTINATION bin)

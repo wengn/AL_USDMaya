@@ -11,3 +11,4 @@ Testing/
 *~
 lib/usdMaya/docs/
 *.orig
+/schemas/AL/usd/schemas/plugInfo.json
