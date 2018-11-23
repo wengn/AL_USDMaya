@@ -17,6 +17,7 @@ add_library(${TRANSLATORS_PACKAGE}
     NurbsCurve.cpp
     FrameRange.cpp
     AIPreview.cpp
+    FileTexture.cpp
 )
 
 set(arg_PUBLIC_HEADER_FILES

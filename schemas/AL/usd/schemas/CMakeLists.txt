@@ -20,7 +20,7 @@ configure_file (
     @ONLY
 )
 
-list(APPEND DEPENDANT_LIBRARIES ${PYTHON_LIBRARIES} usd usdGeom)
+list(APPEND DEPENDANT_LIBRARIES ${PYTHON_LIBRARIES} usd usdGeom usdShade)
 
 ####################################################################################################
 # Schemas generation
@@ -64,6 +64,7 @@ add_library(${SCHEMAS_PACKAGE}
     ModelAPI.cpp
     MayaReference.cpp
     FrameRange.cpp
+    PreviewSurface.cpp #naiqi's change
     tokens.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/ModuleDeps.cpp
 )
