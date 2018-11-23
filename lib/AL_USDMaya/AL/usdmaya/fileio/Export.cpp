@@ -24,6 +24,7 @@
 #include "maya/MAnimUtil.h"
 #include "maya/MArgDatabase.h"
 #include "maya/MDagPath.h"
+#include "maya/MFnAttribute.h"
 #include "maya/MFnCamera.h"
 #include "maya/MFnDagNode.h"
 #include "maya/MFnMesh.h"
@@ -48,6 +49,8 @@
 #include "pxr/usd/usdGeom/nurbsCurves.h"
 #include "pxr/base/gf/transform.h"
 #include "pxr/usd/usdGeom/camera.h"
+#include "pxr/usd/usdShade/input.h"
+#include "pxr/usd/usdShade/output.h"
 #include "pxr/usd/usdShade/material.h"
 #include "pxr/usd/usdShade/materialBindingAPI.h"
 
@@ -871,8 +874,6 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
 //----------------------------------------------------------------------------------------------------------------------
 void Export::checkShapeShading(MDagPath shapePath, SdfPath& usdPath)
 {
-  //Naiqi's test
-  // Find its connecting node, if there is shading node and it is Arnold shading
   MStatus status;
   MString dagPathStr = shapePath.fullPathName();
 
@@ -890,15 +891,11 @@ void Export::checkShapeShading(MDagPath shapePath, SdfPath& usdPath)
       {
         //Find the arnold shader
         MFnDependencyNode shaderEnFn(shaderEngines[j]);
-
         std::string shaderEnName(shaderEnFn.name().asChar());
         if(shaderEnName.find("ai") == std::string::npos)
           continue;
-        MPlug surfaceShaderPlug = shaderEnFn.findPlug(MString("surfaceShader"),&status);
-        MPlugArray srcPlugs;
-        surfaceShaderPlug.connectedTo(srcPlugs, true,false, &status);
 
-        MObjectHandle aiSSNode(srcPlugs[0].node());
+        MObjectHandle aiSSNode(shaderEngines[j]); //It is actually finding all the Arnold shading engine
         if(std::find(m_aiSurfaceShaders.begin(), m_aiSurfaceShaders.end(), aiSSNode) == m_aiSurfaceShaders.end())
         {
            m_aiSurfaceShaders.push_back(aiSSNode);
@@ -916,16 +913,11 @@ void Export::checkShapeShading(MDagPath shapePath, SdfPath& usdPath)
     {
       //Find the arnold shader
       MFnDependencyNode shaderEnFn(shaderEngines[j]);
-
       std::string shaderEnName(shaderEnFn.name().asChar());
       if(shaderEnName.find("ai") == std::string::npos)
         continue;
 
-      MPlug surfaceShaderPlug = shaderEnFn.findPlug(MString("surfaceShader"),&status);
-      MPlugArray srcPlugs;
-      surfaceShaderPlug.connectedTo(srcPlugs, true,false, &status);
-
-      MObjectHandle aiSSNode(srcPlugs[0].node());
+      MObjectHandle aiSSNode(shaderEngines[j]);
       if(std::find(m_aiSurfaceShaders.begin(), m_aiSurfaceShaders.end(), aiSSNode) == m_aiSurfaceShaders.end())
       {
         m_aiSurfaceShaders.push_back(aiSSNode);
@@ -933,8 +925,7 @@ void Export::checkShapeShading(MDagPath shapePath, SdfPath& usdPath)
       m_shapeDagPaths.push_back(shapePath);
       m_shapeUsdPaths.push_back(usdPath);
      }
- }
-
+  }
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -955,7 +946,10 @@ void Export::exportAIShader()
       matPrim = translatorPtr->exportObject(m_impl->stage(), (*it).object(), emptyPath, m_params);
       UsdShadeMaterial usdMat(matPrim);
       if(!usdMat)
-          std::cout<<"UsdShadeMaterial is not created correctly"<<std::endl;
+        TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportAIShader: UsdShadeMaterial is not created correctly.");
+      UsdShadeShader surfaceShader = usdMat.ComputeSurfaceSource();
+      if(!surfaceShader)
+        TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportAIShader: The surface shader is not valid.");
 
       std::string newMatNameStr = matPrim.GetName();
       std::string shadingNodeName = newMatNameStr.substr(0, newMatNameStr.find('_'));
@@ -974,108 +968,101 @@ void Export::exportAIShader()
         {
           //Find the arnold shader
           MFnDependencyNode shadersFn(shaders[j]);
-          std::string curShaderStr = std::string(shadersFn.name().asChar());
           if(std::string(shadersFn.name().asChar()).find(shadingNodeName) == std::string::npos)
             continue;
 
           UsdPrim shapePrim = m_impl->stage()->GetPrimAtPath(m_shapeUsdPaths[it - m_shapeDagPaths.begin()]);
           if(!shapePrim)
-              std::cout<<"Shape prim is not valid"<<std::endl;
+            TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportAIShader: The shape prim is not valid.");
           UsdShadeMaterialBindingAPI bindAPI(shapePrim);
           if(usdMat && shapePrim)
             bindAPI.Bind(usdMat, UsdShadeTokens->fallbackStrength, UsdShadeTokens->preview);
         }
       }
+
+      // For every surface shader, need to find if there is any texture connected to its different color channel
+      std::vector<MObjectHandle> fileNodes = checkFileTextureNode((*it).object());
+      for(std::vector<MObjectHandle>::iterator itFile = fileNodes.begin(); itFile != fileNodes.end(); ++itFile)
+      {
+        translators::TranslatorManufacture::RefPtr translatorFilePtr = m_translatorManufacture.get((*itFile).object());
+        if(translatorFilePtr)
+        {
+          SdfPath parentPath = usdMat.GetPath();
+          UsdPrim fileNodePrim = translatorFilePtr->exportObject(m_impl->stage(), (*itFile).object(), parentPath, m_params);
+
+          // Connect this uvTexture node to aiSurfaceShader node
+          // Find out which attribute is connected to which on shader node
+          MFnDependencyNode fileNodeFn((*itFile).object());
+          MPlug colorPlug = fileNodeFn.findPlug("outColor", &status);
+          MPlugArray conColorArray;
+          colorPlug.connectedTo(conColorArray, false, true, &status);
+
+          UsdShadeShader uvTextureShader(fileNodePrim);
+          if(conColorArray.length())
+          {
+            UsdShadeOutput rgbOutput = uvTextureShader.GetOutput(TfToken("rgb"));
+            MString destInputStr = MFnAttribute(conColorArray[0].attribute()).name();
+            if (destInputStr == MString("baseColor"))
+              surfaceShader.GetInput(TfToken("diffuseColor")).ConnectToSource(rgbOutput);
+            if (destInputStr == MString("emissionColor"))
+              surfaceShader.GetInput(TfToken("emissiveColor")).ConnectToSource(rgbOutput);
+            if (destInputStr == MString("specularColor"))
+              surfaceShader.GetInput(TfToken("specularColor")).ConnectToSource(rgbOutput);
+            if(destInputStr == MString("opacity"))
+              surfaceShader.GetInput(TfToken("opacity")).ConnectToSource(rgbOutput);
+          }
+          MPlug alphaPlug = fileNodeFn.findPlug("outAlpha", &status);
+          MPlugArray conAlphaArray;
+          alphaPlug.connectedTo(conAlphaArray, false, true, &status);
+          std::string conAttrName;
+          if(conAlphaArray.length())
+            conAttrName = std::string(MFnAttribute(conAlphaArray[0].attribute(&status)).name().asChar());
+          if(conAttrName.compare("specularRoughness")==0)
+            uvTextureShader.GetOutput(TfToken("a")).ConnectToSource(surfaceShader.GetInput(TfToken("roughness")));
+          if(conAttrName.compare("mentalness") == 0)
+            uvTextureShader.GetOutput(TfToken("a")).ConnectToSource(surfaceShader.GetInput(TfToken("metallic")));
+          if(conAttrName.compare("coat") == 0)
+            uvTextureShader.GetOutput(TfToken("a")).ConnectToSource(surfaceShader.GetInput(TfToken("clearcoat")));
+          if(conAttrName.compare("coatRoughness") == 0)
+            uvTextureShader.GetOutput(TfToken("a")).ConnectToSource(surfaceShader.GetInput(TfToken("clearcoatRoughness")));
+        }
+      }
     }
   }
+}
 
-/*
-  // Material is a special case there is no one-on-one relationship between a sdfPath and a MObject in the above exportObject() call
-  // Traverse the m_shapePaths list and bind the shape to corresponding material
-  for(std::vector<MDagPath>::iterator it = m_shapeDagPaths.begin(); it != m_shapeDagPaths.end(); ++it)
+//----------------------------------------------------------------------------------------------------------------------
+std::vector<MObjectHandle> Export::checkFileTextureNode(const MObject& shadingEngineObj)
+{
+  MStatus status = MS::kSuccess;
+  std::vector<MObjectHandle> fileNodeLists;
+
+  MPlug surfaceShaderPlug = MFnDependencyNode(shadingEngineObj,&status).findPlug(MString("surfaceShader"),&status);
+  MPlugArray srcPlugs;
+  surfaceShaderPlug.connectedTo(srcPlugs, true,false, &status);
+  MObject shaderObj = srcPlugs[0].node();
+
+  MFnDependencyNode shaderFn(shaderObj, &status);
+  MPlugArray conPlugs;
+  status = shaderFn.getConnections(conPlugs);
+  for(unsigned int i = 0; i < conPlugs.length(); i++)
   {
-    MFnMesh meshFn(*it, &status);
-    if((*it).isInstanced())
+    std::string attrName(MFnAttribute(conPlugs[i].attribute(&status)).name().asChar());
+    if(strstr(attrName.c_str(), "baseColor") || strstr(attrName.c_str(), "emissionColor") || strstr(attrName.c_str(), "specularColor")
+       || strstr(attrName.c_str(), "specularRoughness") || strstr(attrName.c_str(), "transmission") || strstr(attrName.c_str(), "coat")
+       || strstr(attrName.c_str(), "coatRoughness") || strstr(attrName.c_str(), "opacity"))
     {
-      for(unsigned int i = 0; i < (*it).instanceNumber(); i++)
-      {
-        MObjectArray shaders;
-        MIntArray indices;
-        meshFn.getConnectedShaders(i,shaders, indices);
-        for(unsigned int j = 0; j < shaders.length(); j++)
-        {
-          //Find the arnold shader
-          MFnDependencyNode shadersFn(shaders[j]);
-          if(std::string(shadersFn.name().asChar()).find("ai") == std::string::npos)
-            continue;
-
-          SdfPath matPath(SdfPath::AbsoluteRootPath().GetString() + std::string(shadersFn.name(&status).asChar()) + "_" + "Mat");
-          UsdShadeMaterial usdMat(m_impl->stage()->GetPrimAtPath(matPath));
-          UsdPrim shapePrim = m_impl->stage()->GetPrimAtPath(m_shapeUsdPaths[it - m_shapeDagPaths.begin()]);
-          if(!shapePrim)
-          {
-            UsdShadeMaterialBindingAPI bindAPI(shapePrim);
-
-            if(!usdMat)
-              bindAPI.Bind(usdMat, UsdShadeTokens->fallbackStrength, UsdShadeTokens->preview);
-            else
-            {
-              std::cout<<"material is not valid"<<std::endl;
-            }
-          }else
-          {
-              std::cout<<"the prim is not valid"<<std::endl;
-          }
-        }
-      }
-    }
-    else
-    {
-      MObjectArray shaders;
-      MIntArray indices;
-      meshFn.getConnectedShaders(0,shaders, indices);
-      for(unsigned int j = 0; j < shaders.length(); j++)
-      {
-        //Find the arnold shader
-        MFnDependencyNode shadersFn(shaders[j]);
-        if(std::string(shadersFn.name().asChar()).find("ai") == std::string::npos)
+      MPlugArray srcPlugs;
+      MPlug(conPlugs[i]).connectedTo(srcPlugs, true, false, &status);
+      if(srcPlugs.length() == 0)
           continue;
+      MObject srcNode = MPlug(srcPlugs[0]).node(&status);
 
-        SdfPath matPath(SdfPath::AbsoluteRootPath().GetString() + std::string(shadersFn.name(&status).asChar()) + "_" + "Mat");
-        std::string matStr = matPath.GetString();
-        UsdPrim matPrim = m_impl->stage()->GetPrimAtPath(matPath);
-        UsdShadeMaterial usdMat(m_impl->stage()->GetPrimAtPath(matPath));
-
-        SdfPath testSdf = m_shapeUsdPaths[it - m_shapeDagPaths.begin()];
-        std::string sdfStr = testSdf.GetString();
-        UsdPrim shapePrim = m_impl->stage()->GetPrimAtPath(m_shapeUsdPaths[it - m_shapeDagPaths.begin()]);
-        MString testDag = (*it).fullPathName();
-        std::string testDagStr(testDag.asChar());
-
-
-        if(!shapePrim && (!matPrim))
-        {
-          UsdShadeMaterialBindingAPI bindAPI(shapePrim);
-
-          if(!usdMat)
-            bindAPI.Bind(usdMat, UsdShadeTokens->fallbackStrength, UsdShadeTokens->preview);
-          else
-          {
-            std::cout<<"material is not valid"<<std::endl;
-          }
-        }else
-        {
-            std::cout<<"the prim is not valid"<<std::endl;
-        }
-
-
-
-        UsdShadeMaterialBindingAPI bindAPI(shapePrim);
-        //bindAPI.Bind(usdMat, UsdShadeTokens->fallbackStrength, UsdShadeTokens->preview);
-      }
+      if(srcNode.hasFn(MFn::kFileTexture))
+        fileNodeLists.push_back(MObjectHandle(MPlug(srcPlugs[0]).node(&status)));
     }
   }
-  */
+  return fileNodeLists;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
