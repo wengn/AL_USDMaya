@@ -82,7 +82,7 @@ private:
                      const SdfPath& instancePath, ReferenceType refType);
 
   inline bool isPrimDefined(SdfPath &usdPath);
-  
+
   struct Impl;
   void doExport();
   const ExporterParams& m_params;
@@ -92,6 +92,7 @@ private:
 
   void checkShapeShading(MDagPath shapePath, SdfPath& usdPath); //Naiqi's change 
   void exportAIShader(); //Naiqi's change
+  std::vector<MObjectHandle> checkFileTextureNode(const MObject& shadingEngineObj); //Naiqi's change
   std::vector<MObjectHandle> m_aiSurfaceShaders; //Naiqi's change
   std::vector<SdfPath> m_shapeUsdPaths; //Naiqi's change
   std::vector<MDagPath> m_shapeDagPaths;

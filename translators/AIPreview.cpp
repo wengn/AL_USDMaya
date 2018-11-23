@@ -23,6 +23,7 @@
 #include "pxr/usd/sdf/valueTypeName.h"
 #include "pxr/usd/usd/timeCode.h"
 
+#include "AL/usd/schemas/PreviewSurface.h"
 #include "AL/usdmaya/utils/DgNodeHelper.h"
 #include "AL/usdmaya/fileio/AnimationTranslator.h"
 #include "AL/usdmaya/fileio/translators/DgNodeTranslator.h"
@@ -44,7 +45,8 @@ namespace usdmaya {
 namespace fileio {
 namespace translators {
 
-AL_USDMAYA_DEFINE_TRANSLATOR(AIPreview, PXR_NS::UsdShadeShader)
+//AL_USDMAYA_DEFINE_TRANSLATOR(AIPreview, OF_USD_PreviewSurface)
+AL_USDMAYA_DEFINE_TRANSLATOR(AIPreview, PXR_NS::UsdShadeMaterial)
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -66,13 +68,11 @@ MStatus AIPreview::initialize()
 MStatus AIPreview::import(const UsdPrim& prim, MObject& parent, MObject& createdObj)
 {
   MStatus status = MS::kSuccess;
-  UsdShadeShader pbrShader(prim);
-  std::string curSdfPath = pbrShader.GetPath().GetString();
+  //Naiqi's test
+  std::string primType = prim.GetTypeName();
+  UsdShadeMaterial mat(prim);
+  UsdShadeShader pbrShader = mat.ComputeSurfaceSource();
 
-/*  MFnDependencyNode shaderFn;
-  MObject to =  shaderFn.create("aiStandardSurface", prim.GetName().GetText(), &status);
-  createdObj = to;
-*/
   MString createShaderResult;
   MString createShader("createNode ");
   createShader += "aiStandardSurface;\n";
@@ -231,7 +231,14 @@ UsdPrim AIPreview::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPath
   float transmission = 0.0;
   float opacity = 0.0;
   float normal[3] = { 0.0, 0.0, 0.0};
-  MFnDependencyNode shaderFn(obj, &status);
+
+  // Currently obj is arnold shading engine, not the surface shader
+  MPlug surfaceShaderPlug = MFnDependencyNode(obj,&status).findPlug(MString("surfaceShader"),&status);
+  MPlugArray srcPlugs;
+  surfaceShaderPlug.connectedTo(srcPlugs, true,false, &status);
+  MObject shaderObj = srcPlugs[0].node();
+
+  MFnDependencyNode shaderFn(shaderObj, &status);
   MObject baseAttr= shaderFn.attribute(MString("base"),&status);
   MObject baseColorAttr = shaderFn.attribute(MString("baseColor"), &status);
   MObject emissionAttr = shaderFn.attribute(MString("emission"), &status);
@@ -248,25 +255,26 @@ UsdPrim AIPreview::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPath
   MObject normalAttr = shaderFn.attribute(MString("normalCamera"), &status);
 
   const char* const errorString = "AIPreviewTranslator: error getting maya aiSurfaceShader parameters";
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(obj, baseAttr, base), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getVec3(obj, baseColorAttr, baseColor), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(obj, emissionAttr, emission), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getVec3(obj, emissionColorAttr, emissionColor), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(obj, metalnessAttr, metalness), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(obj, specularAttr, specular), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getVec3(obj, specularColorAttr, specularColor), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(obj, specularRoughAttr, specularRoughness), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(obj, coatAttr, coat), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(obj, coatRoughnessAttr, coatRoughness), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(obj, specularIORAttr, specularIOR), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(obj, transmissionAttr, transmission), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(obj, opacityAttr, opacity), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getVec3(obj, normalAttr, normal), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, baseAttr, base), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getVec3(shaderObj, baseColorAttr, baseColor), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, emissionAttr, emission), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getVec3(shaderObj, emissionColorAttr, emissionColor), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, metalnessAttr, metalness), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, specularAttr, specular), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getVec3(shaderObj, specularColorAttr, specularColor), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, specularRoughAttr, specularRoughness), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, coatAttr, coat), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, coatRoughnessAttr, coatRoughness), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, specularIORAttr, specularIOR), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, transmissionAttr, transmission), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, opacityAttr, opacity), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getVec3(shaderObj, normalAttr, normal), errorString);
 
   //Create the material at the root layer
   SdfPath matPath(SdfPath::AbsoluteRootPath().GetString() + std::string(shaderFn.name(&status).asChar()) + "_" + "Mat");
   UsdShadeMaterial usdMat = UsdShadeMaterial::Define(stage, matPath);
-  UsdShadeShader previewShader = UsdShadeShader::Define(stage, SdfPath(usdMat.GetPath().GetString() + "/pbrShader"));
+  UsdShadeShader previewShader = UsdShadeShader::Define(stage, SdfPath(usdMat.GetPath().GetString() + "/" + shaderFn.name().asChar()));
+  std::string shadername = previewShader.GetPrim().GetName();
   previewShader.CreateIdAttr(VtValue(UsdImagingTokens->UsdPreviewSurface));
 
   float diffuseColor[3] = {base * baseColor[0], base * baseColor[1], base * baseColor[2]};
@@ -276,19 +284,23 @@ UsdPrim AIPreview::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPath
   previewShader.CreateInput(TfToken("emissiveColor"), SdfValueTypeNames->Color3f).Set(GfVec3f(emissiveColor));
 
   UsdShadeInput useSpecular = previewShader.CreateInput(TfToken("useSpecularWorkflow"), SdfValueTypeNames->Int);
-  MPlug metalnessPlug(obj, metalnessAttr);
+
+  MPlug metalnessPlug(shaderObj, metalnessAttr);
+  UsdShadeInput metallicInput = previewShader.CreateInput(TfToken("metallic"), SdfValueTypeNames->Float);
+  UsdShadeInput specularColorInput = previewShader.CreateInput(TfToken("specularColor"), SdfValueTypeNames->Color3f);
+  UsdShadeInput roughnessInput = previewShader.CreateInput(TfToken("roughness"), SdfValueTypeNames->Float);
   if(metalness > 0.0 || metalnessPlug.isConnected(&status))
   {
     //ignore the specular workflow
     useSpecular.Set(VtValue(0));
-    previewShader.CreateInput(TfToken("metallic"), SdfValueTypeNames->Float).Set(metalness);
+    metallicInput.Set(metalness);
   }
   else
   {
     useSpecular.Set(VtValue(1));
     float spec[3] = {specular * specularColor[0], specular * specularColor[1], specular * specularColor[2]};
-    previewShader.CreateInput(TfToken("specularColor"), SdfValueTypeNames->Color3f).Set(GfVec3f(spec));
-    previewShader.CreateInput(TfToken("roughness"), SdfValueTypeNames->Float).Set(specularRoughness);
+    specularColorInput.Set(GfVec3f(spec));
+    roughnessInput.Set(specularRoughness);
   }
 
   previewShader.CreateInput(TfToken("clearcoat"), SdfValueTypeNames->Float).Set(coat);
@@ -317,7 +329,7 @@ UsdPrim AIPreview::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPath
 MStatus AIPreview::tearDown(const SdfPath& path)
 {
   MObjectHandle obj;
-  context()->getMObject(path, obj, MFn::kSurfaceShader);  //TODO: need to double check
+  context()->getMObject(path, obj, MFn::kShadingEngine);  //TODO: need to double check
 
   context()->removeItems(path);
   return MS::kSuccess;
@@ -328,7 +340,7 @@ ExportFlag AIPreview::canExport(const MObject& obj)
 {
   MStatus status = MS::kSuccess;
   if(obj.isNull()) return ExportFlag::kNotSupported;
-  if(obj.hasFn(MFn::kPluginDependNode))   //The problem is aiSurfaceShader only shows type as kPluginDependNode
+  if(obj.hasFn(MFn::kShadingEngine))   //Now exporting arnold shading engine
   {
     MFnDependencyNode depFn(obj, &status);
     if(std::string(depFn.name().asChar()).find("ai") != std::string::npos)

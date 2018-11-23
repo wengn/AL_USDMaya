@@ -18,6 +18,7 @@ add_library(${TRANSLATORS_PACKAGE}
     FrameRange.cpp
     DirectionalLight.cpp
     AIPreview.cpp
+    FileTexture.cpp
 )
 
 set(arg_PUBLIC_HEADER_FILES
