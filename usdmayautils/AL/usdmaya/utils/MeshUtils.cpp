@@ -1812,6 +1812,10 @@ void MeshExportContext::copyBindPoseData(UsdTimeCode time)
 //----------------------------------------------------------------------------------------------------------------------
 void MeshExportContext::copyNormalData(UsdTimeCode time)
 {
+  //Naiqi's test
+  TfToken inter = mesh.GetNormalsInterpolation();
+  std::string interStr = inter.GetString();
+
   if(diffGeom & kNormals)
   {
     if(UsdAttribute normalsAttr = mesh.GetNormalsAttr())

@@ -48,6 +48,8 @@ public:
   {return obj.hasFn(MFn::kFileTexture) ? ExportFlag::kFallbackSupport : ExportFlag::kNotSupported; }
 
   MStatus updateMayaAttributes(MObject to, const UsdPrim& prim);
+  bool needsTransformParent() const override
+    { return false; }
 
 private:
   static MObject m_uvTilingMode;
