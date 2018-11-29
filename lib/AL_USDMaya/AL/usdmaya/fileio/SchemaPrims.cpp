@@ -102,6 +102,7 @@ bool importSchemaPrim(
   {
     if(param.forceTranslatorImport() || torBase->importableByDefault())
     {
+      std::string naiqiTest = prim.GetPath().GetString(); //Naiqi's test
       TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("SchemaPrims::importSchemaPrim import %s\n", prim.GetPath().GetText());
       if(torBase->import(prim, parent, created) != MS::kSuccess)
       {

@@ -78,59 +78,54 @@ MStatus FileTexture::initialize()
 MStatus FileTexture::import(const UsdPrim& prim, MObject& parent, MObject& createdObj)
 {
   MStatus status = MS::kSuccess;
-  std::string fileTextureName(prim.GetName());
 
-  MString cmdResult;
-  MString createShader("shadingNode -asTexture file -name ");
-  createShader += MString(fileTextureName.c_str());
-  createShader += ";\n";
-  status = MGlobal::executeCommand(createShader,cmdResult);
-  MSelectionList selList;
-  status = MGlobal::getSelectionListByName(cmdResult, selList);
-  status = selList.getDependNode(0, createdObj);
-  status = updateMayaAttributes(createdObj, prim);
-  selList.clear();
-
-  TranslatorContextPtr ctx = context();
-  if(ctx)
+  TfToken id;
+  UsdShadeShader shaderNode(prim);
+  if(shaderNode.GetIdAttr().Get(&id))
   {
-    ctx->insertItem(prim, createdObj);
+    if (id == UsdImagingTokens->UsdPrimvarReader_float2)   //Do not handle UsdPrimvarReader_float2, as I will create place2dTexture on the file node
+      return status;
+    else if(id == UsdImagingTokens->UsdUVTexture)
+   {
+      MFnDependencyNode fileNodeFn;
+      createdObj = fileNodeFn.create("file", MString(std::string(prim.GetName()).c_str()), &status);
+      status = updateMayaAttributes(createdObj, prim);
+
+      TranslatorContextPtr ctx = context();
+      if(ctx)
+      {
+        ctx->insertItem(prim, createdObj);
+      }
+
+      // Connect place2dTexture node to file node
+      MFnDependencyNode place2dFn;
+      place2dFn.create("place2dTexture");
+      MDGModifier mod;
+      MPlug uvCoordPlug = fileNodeFn.findPlug("uvCoord", &status);
+      MPlug outUVPlug = place2dFn.findPlug("outUV", &status);
+      status = mod.connect(outUVPlug, uvCoordPlug);
+
+      ConnectPlug(mod, place2dFn, fileNodeFn, "fs");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "vc1");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "vt1");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "vt2");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "vt3");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "coverage");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "mu");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "mv");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "noiseUV");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "offset");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "repeatUV");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "rotateFrame");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "rotateUV");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "stagger");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "translateFrame");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "wrapU");
+      ConnectPlug(mod, place2dFn, fileNodeFn, "wrapV");
+
+      status = mod.doIt();
+    }
   }
-
-  // Create place2dTexture node
-  MString create2dTexture("shadingNode -asUtility place2dTexture;\n");
-  status = MGlobal::executeCommand(create2dTexture,cmdResult);
-  status = MGlobal::getSelectionListByName(cmdResult, selList);
-  MObject place2dObj;
-  status = selList.getDependNode(0, place2dObj);
-
-  // Connect place2dTexture node to file node
-  MDGModifier mod;
-  MFnDependencyNode fileNodeFn(createdObj, &status);
-  MPlug uvCoordPlug = fileNodeFn.findPlug("uvCoord", &status);
-  MFnDependencyNode place2dFn(place2dObj, &status);
-  MPlug outUVPlug = place2dFn.findPlug("outUV", &status);
-  status = mod.connect(outUVPlug, uvCoordPlug);
-
-  ConnectPlug(mod, place2dFn, fileNodeFn, "fs");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "vc1");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "vt1");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "vt2");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "vt3");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "coverage");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "mu");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "mv");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "noiseUV");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "offset");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "repeatUV");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "rotateFrame");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "rotateUV");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "stagger");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "translateFrame");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "wrapU");
-  ConnectPlug(mod, place2dFn, fileNodeFn, "wrapV");
-
-  status = mod.doIt();
   return status;
 }
 
@@ -141,19 +136,25 @@ MStatus FileTexture::updateMayaAttributes(MObject to, const UsdPrim& prim)
   UsdShadeShader fileShader(prim);
 
   int tilingMode = 0;
-  std::string fileName;
+  VtValue defaultVal;
+  std::string filePath;
 
   const char* const errorString = "FileTextureTranslator: error setting file node parameters";
   if(UsdAttribute tileAttr = prim.GetAttribute(TfToken("maya_uvTilingMode")))
   {
     tileAttr.Get(&tilingMode);
-    auto fileAttr = fileShader.GetInput(TfToken("file"));
-    fileAttr.Get(&fileName);
+    if(auto fileAttr = fileShader.GetInput(TfToken("file")))
+    {
+      fileAttr.Get(&defaultVal);
+      const SdfAssetPath defaultPath = defaultVal.Get<SdfAssetPath>();
+      filePath = defaultPath.GetAssetPath();
+    }
+
 
     if(tilingMode == 0)
-      AL_MAYA_CHECK_ERROR(DgNodeTranslator::setString(to, m_fileTextureName, fileName), errorString);
+      AL_MAYA_CHECK_ERROR(DgNodeTranslator::setString(to, m_fileTextureName, filePath), errorString);
     if(tilingMode == 3)
-      AL_MAYA_CHECK_ERROR(DgNodeTranslator::setString(to, m_computedFileTextureNamePattern, fileName), errorString);
+      AL_MAYA_CHECK_ERROR(DgNodeTranslator::setString(to, m_computedFileTextureNamePattern, filePath), errorString);
     AL_MAYA_CHECK_ERROR(DgNodeTranslator::setInt64(to, m_uvTilingMode, tilingMode), errorString);
   }
 
@@ -217,6 +218,7 @@ UsdPrim FileTexture::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPa
       primName = computedUDIMTextureName;
   else
       primName = fileTextureName;
+  std::string textPath = primName;
   primName = primName.substr(primName.find_last_of("/")+1, std::string::npos);
   primName = primName.substr(0, primName.find_first_of("."));
   SdfPath uvTexturePath(usdPath.GetString() + "/" + primName);
@@ -227,10 +229,7 @@ UsdPrim FileTexture::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPa
 
   uvTextureShader.CreateIdAttr(VtValue(UsdImagingTokens->UsdUVTexture));
 
-  if( uvTilingMode == 3)
-    uvTextureShader.CreateInput(TfToken("file"), SdfValueTypeNames->String).Set(computedUDIMTextureName);
-  else
-    uvTextureShader.CreateInput(TfToken("file"), SdfValueTypeNames->String).Set(fileTextureName);  //Do not consider Mudbox or other mode
+  uvTextureShader.CreateInput(TfToken("file"), SdfValueTypeNames->Asset).Set(SdfAssetPath(textPath));  //Do not consider Mudbox or other mode
   uvTextureShader.GetPrim().CreateAttribute(TfToken("maya_uvTilingMode"), SdfValueTypeNames->Int).Set(uvTilingMode);
 
   UsdShadeInput uvInput = uvTextureShader.CreateInput(TfToken("st"), SdfValueTypeNames->Float2);
