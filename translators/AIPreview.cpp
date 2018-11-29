@@ -17,9 +17,11 @@
 #include "AIPreview.h"
 #include "pxr/usd/usdGeom/mesh.h"
 #include "pxr/usdImaging/usdImaging/tokens.h"
+#include "pxr/usd/usdShade/connectableAPI.h"
 #include "pxr/usd/usdShade/shader.h"
 #include "pxr/usd/usdShade/material.h"
 #include "pxr/usd/usdShade/materialBindingAPI.h"
+#include "pxr/usd/usdShade/input.h"
 #include "pxr/usd/sdf/valueTypeName.h"
 #include "pxr/usd/usd/timeCode.h"
 
@@ -49,7 +51,25 @@ namespace translators {
 AL_USDMAYA_DEFINE_TRANSLATOR(AIPreview, PXR_NS::UsdShadeMaterial)
 
 //----------------------------------------------------------------------------------------------------------------------
-
+MString usdNameToAIName(std::string usdAttrName)
+{
+  if(usdAttrName == "diffuseColor")
+    return MString("baseColor");
+  if(usdAttrName == "emissiveColor")
+    return MString("emissionColor");
+  if(usdAttrName == "specularColor")
+    return MString("specularColor");
+  if(usdAttrName == "opacity")
+    return MString("opacity");
+  if(usdAttrName == "roughness")
+    return MString("specularRoughness");
+  if(usdAttrName == "metallic")
+    return MString("mentalness");
+  if(usdAttrName == "clearcoat")
+    return MString("coat");
+  if(usdAttrName == "clearcoatRoughness")
+    return MString("coatRoughness");
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 MStatus AIPreview::initialize()
@@ -68,19 +88,12 @@ MStatus AIPreview::initialize()
 MStatus AIPreview::import(const UsdPrim& prim, MObject& parent, MObject& createdObj)
 {
   MStatus status = MS::kSuccess;
-  //Naiqi's test
-  std::string primType = prim.GetTypeName();
   UsdShadeMaterial mat(prim);
   UsdShadeShader pbrShader = mat.ComputeSurfaceSource();
+  std::string shaderName = pbrShader.GetPrim().GetName();
 
-  MString createShaderResult;
-  MString createShader("createNode ");
-  createShader += "aiStandardSurface;\n";
-  status = MGlobal::executeCommand(createShader,createShaderResult);
-  MSelectionList shaderList;
-  status = MGlobal::getSelectionListByName(createShaderResult, shaderList);
-  status = shaderList.getDependNode(0, createdObj);
-
+  MFnDependencyNode shaderFn;
+  createdObj = shaderFn.create("aiStandardSurface", MString(shaderName.c_str()), &status);
   status = updateMayaAttributes(createdObj, pbrShader);
 
   TranslatorContextPtr ctx = context();
@@ -90,26 +103,100 @@ MStatus AIPreview::import(const UsdPrim& prim, MObject& parent, MObject& created
   }
 
   // Create shading group
-  MString createSGResult;
-  MString createSG("createNode ");
-  createSG += "shadingEngine;\n";
-  status = MGlobal::executeCommand(createSG, createSGResult);
-  MSelectionList shdingEngineList;
-  status = MGlobal::getSelectionListByName(createSGResult, shdingEngineList);
-  MObject shadingEngineObj;
-  status = shdingEngineList.getDependNode(0, shadingEngineObj);
-
-  // Connect shading group with shader
-  MFnDependencyNode shaderFn(createdObj, &status);
+  MFnDependencyNode shadingEngineFn;
+  MObject shadingEngineObj = shadingEngineFn.create("shadingEngine", MString(std::string(prim.GetName()).c_str()), &status);
   MPlug outColorPlug = shaderFn.findPlug("outColor", &status);
-  MFnDependencyNode shadingEngineFn(shadingEngineObj, &status);
-  shadingEngineFn.setName(shaderFn.name()+"SG");
 
   MPlug surfaceShaderPlug = shadingEngineFn.findPlug("surfaceShader", &status);
   MDGModifier mod;
   status = mod.connect(outColorPlug, surfaceShaderPlug);
   status = mod.doIt();
+  return status;
+}
 
+std::vector<UsdProperty> AIPreview::checkConnectedProps(const UsdPrim& prim)
+{
+  std::vector<UsdProperty> connectedProps;
+  UsdShadeMaterial mat(prim);
+  UsdShadeShader pbrShader = mat.ComputeSurfaceSource();
+
+  std::vector<UsdShadeInput> inputs = pbrShader.GetInputs();
+  for(std::vector<UsdShadeInput>::iterator it = inputs.begin(); it != inputs.end(); ++it)
+  {
+    if((*it).HasConnectedSource())
+    {
+      UsdShadeConnectableAPI source;
+      TfToken sourceName;
+      UsdShadeAttributeType sourceType;
+      TfToken srcId;
+      (*it).GetConnectedSource(&source, &sourceName, &sourceType);
+
+      UsdShadeShader(source).GetIdAttr().Get(&srcId);
+      if (srcId == UsdImagingTokens->UsdUVTexture)     //Only record input connection from UsdUVTexture
+          connectedProps.push_back(*it);
+      }
+  }
+  return connectedProps;
+}
+
+MStatus AIPreview::postImport(const UsdPrim& prim)
+{
+  MStatus status = MS::kSuccess;
+
+  UsdShadeMaterial mat(prim);
+  UsdShadeShader pbrShader = mat.ComputeSurfaceSource();
+
+  const std::vector<UsdProperty>& connectedProps = checkConnectedProps(prim);
+  for(std::vector<UsdProperty>::const_iterator it = connectedProps.begin(); it != connectedProps.end(); ++it)
+  {
+    UsdShadeConnectableAPI source;
+    TfToken sourceName;
+    UsdShadeAttributeType sourceType;
+    pbrShader.ConnectableAPI().GetConnectedSource(*it, &source, &sourceName, &sourceType);
+
+    std::string testStr =(*it).GetBaseName().GetString();
+    std::string srcNodeName = source.GetPrim().GetName();
+
+    TfToken srcId;
+    if(source)
+    {
+      UsdShadeShader(source).GetIdAttr().Get(&srcId);
+      if (srcId == UsdImagingTokens->UsdUVTexture)    //Only support UsdUVTexture
+      {
+        MSelectionList selList;
+        status = MGlobal::getSelectionListByName(MString(source.GetPrim().GetName().GetString().c_str()), selList);
+        MObject srcNode;
+        status = selList.getDependNode(0, srcNode);
+        MFnDependencyNode srcNodeFn(srcNode);
+
+        MObjectHandle shaderNode;
+        bool result = context()->getMObject(prim, shaderNode, MFn::kPluginDependNode);
+        MDGModifier dgMod;
+
+        MString connectedAttrName(usdNameToAIName((*it).GetBaseName().GetString()));
+
+        if (connectedAttrName.length() == 0)
+            continue;
+        if(sourceName == TfToken("rgb")) //The corresponding attribute on file node should be outColor
+        {
+          MString shaderNodeName = MFnDependencyNode(shaderNode.object()).absoluteName();
+          MString srcNodeName = srcNodeFn.name();
+
+          MPlug connectedPlug = MFnDependencyNode(shaderNode.object()).findPlug(connectedAttrName, &status);
+          MPlug outColorPlug = srcNodeFn.findPlug("outColor", &status);
+          status = dgMod.connect(outColorPlug, connectedPlug);
+          status = dgMod.doIt();
+        }
+        if(sourceName == TfToken("a"))
+        {
+          MPlug connectedPlug = MFnDependencyNode(shaderNode.object()).findPlug(connectedAttrName, &status);
+          MPlug outAlphaPlug = srcNodeFn.findPlug("outAlpha", &status);
+          status = dgMod.connect(outAlphaPlug, connectedPlug);
+          status = dgMod.doIt();
+        }
+      }
+    }
+  }
   return status;
 }
 
@@ -148,8 +235,8 @@ MStatus AIPreview::updateMayaAttributes(MObject to, UsdShadeShader& usdShader)
   MObject emissionObj = shaderFn.attribute("emission", &status);
   AL_MAYA_CHECK_ERROR(DgNodeTranslator::setFloat(to, emissionObj, 1.0), errorString);
 
-  auto specularWorkflowAttr = usdShader.GetInput(TfToken("useSpecularWorkflow"));
-  specularWorkflowAttr.Get(&useSpecularWorkflow);
+  if(auto specularWorkflowAttr = usdShader.GetInput(TfToken("useSpecularWorkflow")))
+    specularWorkflowAttr.Get(&useSpecularWorkflow);
 
   if(useSpecularWorkflow == 0)
   {

@@ -38,15 +38,18 @@ public:
 
   MStatus initialize() override;
   MStatus import(const UsdPrim& prim, MObject& parent, MObject& createdObj) override;
+  MStatus postImport(const UsdPrim& prim) override;
   UsdPrim exportObject(UsdStageRefPtr stage, MObject obj, const SdfPath& usdPath,
                        const ExporterParams& params) override;
   MStatus tearDown(const SdfPath& path) override;
 
   ExportFlag canExport(const MObject& obj) override;
   MStatus updateMayaAttributes(MObject to, UsdShadeShader& usdShader);
-
+  bool needsTransformParent() const override
+    { return false; }
 private:
-
+  std::vector<UsdProperty> checkConnectedProps(const UsdPrim& prim);
+  void findUpstreamPrim(const UsdPrim& prim);
 };
 
 //----------------------------------------------------------------------------------------------------------------------
