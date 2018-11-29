@@ -251,6 +251,7 @@ class ProxyShape
   friend struct SelectionUndoHelper;
   friend class ProxyShapeUI;
   friend class StageReloadGuard;
+  friend class ProxyDrawOverride;
 public:
 
   // returns the shape's parent transform
@@ -425,6 +426,14 @@ public:
     kSelection = 1 << 0,  ///< the node exists for selection
     kRequested = 1 << 1,  ///< the node has been requested by a user
     kRequired = 1 << 2    ///< the node is required for an imported schema prim
+  };
+
+  /// Selection pick modes (based on USD View application)
+  enum class PickMode : int
+  {
+    kPrims = 0,      ///< Pick the target prim
+    kModels = 1,     ///< Pick the nearest model kind ancestor of target
+    kInstances = 2,  ///< Pick an instance of the target (if available)
   };
 
   /// \brief  returns true if the path is required for an imported schema prim
@@ -838,6 +847,10 @@ public:
   /// \return the separated list of paths
   AL_USDMAYA_PUBLIC
   SdfPathVector getPrimPathsFromCommaJoinedString(const MString &paths) const;
+
+  /// \brief  Returns the selection mask of the shape
+  AL_USDMAYA_PUBLIC
+  MSelectionMask getShapeSelectionMask() const override;
 
 private:
 

@@ -80,16 +80,17 @@ private:
   SdfPath determineUsdPath(MDagPath path, const SdfPath& usdPath, ReferenceType refType);
   void addReferences(MDagPath shapePath, MFnTransform& fnTransform, SdfPath& usdPath,
                      const SdfPath& instancePath, ReferenceType refType);
-
-  void checkShapeShading(MDagPath shapePath, SdfPath& usdPath); //Naiqi's change
-  void exportAIShader(); //Naiqi's change
-  std::vector<MObjectHandle> checkFileTextureNode(const MObject& shadingEngineObj); //Naiqi's change
-
+  inline bool isPrimDefined(SdfPath &usdPath);
   struct Impl;
   void doExport();
   const ExporterParams& m_params;
   Impl* m_impl;
   translators::TranslatorManufacture m_translatorManufacture;
+
+
+  void checkShapeShading(MDagPath shapePath, SdfPath& usdPath); //Naiqi's change
+  void exportAIShader(); //Naiqi's change  
+  std::vector<MObjectHandle> checkFileTextureNode(const MObject& shadingEngineObj); //Naiqi's change
   std::vector<MObjectHandle> m_aiSurfaceShaders; //Naiqi's change: stare a list of arnold shading engine node
   std::vector<SdfPath> m_shapeUsdPaths; //Naiqi's change
   std::vector<MDagPath> m_shapeDagPaths;
@@ -99,7 +100,7 @@ private:
 //----------------------------------------------------------------------------------------------------------------------
 /// \brief  A thin MEL command layer that just wraps the AL::usdmaya::fileio::Export process.
 /// \ingroup   fileio
-//----------------------------------------------------------------------------------------------------------------------
+///----------------------------------------------------------------------------------------------------------------------
 class ExportCommand
   : public MPxCommand
 {

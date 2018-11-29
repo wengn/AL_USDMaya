@@ -20,6 +20,10 @@ add_library(${TRANSLATORS_PACKAGE}
     FileTexture.cpp
 )
 
+set(arg_PUBLIC_HEADER_FILES
+    Camera.h
+)
+
 target_compile_definitions(${TRANSLATORS_PACKAGE}
   PRIVATE
     AL_MAYA_MACROS_EXPORT
