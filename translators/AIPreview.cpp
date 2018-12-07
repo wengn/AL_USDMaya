@@ -305,19 +305,20 @@ UsdPrim AIPreview::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPath
 
   //Retrive all shading information
   float base = 0.0;
-  float baseColor[3] = {0.0, 0.0, 0.0};
+  float baseColor[3] = {0.18, 0.18, 0.18};
   float emission = 0.0;
   float emissionColor[3] = {0.0, 0.0, 0.0};
   float metalness = 0.0;
   float specular = 0.0;
   float specularColor[3] = {0.0, 0.0, 0.0};
-  float specularRoughness = 0.0;
+  float specularRoughness = 0.5;
   float coat = 0.0;
-  float coatRoughness = 0.0;
-  float specularIOR = 0.0;
-  float transmission = 0.0;
-  float opacity = 0.0;
-  float normal[3] = { 0.0, 0.0, 0.0};
+  float coatRoughness = 0.01;
+  float specularIOR = 1.5;
+  float transmission = 1.0;
+  float opacity[3] = {1.0, 1.0, 1.0};
+  float normal[3] = { 0.0, 0.0, 1.0};
+  float occlusion = 1.0;
 
   // Currently obj is arnold shading engine, not the surface shader
   MPlug surfaceShaderPlug = MFnDependencyNode(obj,&status).findPlug(MString("surfaceShader"),&status);
@@ -354,7 +355,7 @@ UsdPrim AIPreview::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPath
   AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, coatRoughnessAttr, coatRoughness), errorString);
   AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, specularIORAttr, specularIOR), errorString);
   AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, transmissionAttr, transmission), errorString);
-  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getFloat(shaderObj, opacityAttr, opacity), errorString);
+  AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getVec3(shaderObj, opacityAttr, opacity), errorString);
   AL_MAYA_CHECK_ERROR2(AL::usdmaya::utils::DgNodeHelper::getVec3(shaderObj, normalAttr, normal), errorString);
 
   //Create the material at the root layer
@@ -376,18 +377,24 @@ UsdPrim AIPreview::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPath
   UsdShadeInput metallicInput = previewShader.CreateInput(TfToken("metallic"), SdfValueTypeNames->Float);
   UsdShadeInput specularColorInput = previewShader.CreateInput(TfToken("specularColor"), SdfValueTypeNames->Color3f);
   UsdShadeInput roughnessInput = previewShader.CreateInput(TfToken("roughness"), SdfValueTypeNames->Float);
+
+
+  // Currently there is a limitation of UsdPreviewSurface that all attributes has to be set value
+  if(metallicInput)
+      metallicInput.Set(metalness);
+  float spec[3] = {specular * specularColor[0], specular * specularColor[1], specular * specularColor[2]};
+  specularColorInput.Set(GfVec3f(spec));
+  if(roughnessInput)
+      roughnessInput.Set(specularRoughness);
+
   if(metalness > 0.0 || metalnessPlug.isConnected(&status))
   {
     //ignore the specular workflow
     useSpecular.Set(VtValue(0));
-    metallicInput.Set(metalness);
   }
   else
   {
-    useSpecular.Set(VtValue(1));
-    float spec[3] = {specular * specularColor[0], specular * specularColor[1], specular * specularColor[2]};
-    specularColorInput.Set(GfVec3f(spec));
-    roughnessInput.Set(specularRoughness);
+    useSpecular.Set(VtValue(1)); 
   }
 
   previewShader.CreateInput(TfToken("clearcoat"), SdfValueTypeNames->Float).Set(coat);
@@ -399,14 +406,21 @@ UsdPrim AIPreview::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPath
   // based on the amount of "transmission", or it will **not** raytrace a thing and will
   // instead consider the "opacity" parameter
   if(transmission > 0.0)
-      previewShader.CreateInput(TfToken("opacity"), SdfValueTypeNames->Float).Set(transmission);
+    previewShader.CreateInput(TfToken("opacity"), SdfValueTypeNames->Float).Set(transmission);
   else
-      previewShader.CreateInput(TfToken("opacity"), SdfValueTypeNames->Float).Set(opacity);
+  {
+    //Converting Arnold opacity float3 to USD scalar opacity
+    float opacityVal = 0.2126 * opacity[0] + 0.7152 * opacity[1] +  0.0722 * opacity[2];
+    previewShader.CreateInput(TfToken("opacity"), SdfValueTypeNames->Float).Set(opacityVal);
+  }
 
-  previewShader.CreateInput(TfToken("normal"), SdfValueTypeNames->Float3).Set(GfVec3f(normal));
+  previewShader.CreateInput(TfToken("normal"), SdfValueTypeNames->Normal3f).Set(GfVec3f(normal));
+
+  previewShader.CreateInput(TfToken("occlusion"), SdfValueTypeNames->Float).Set(occlusion);
+
   usdMat.CreateSurfaceOutput().ConnectToSource(previewShader,TfToken("surface"));
 
-  stage->GetRootLayer()->Save(); //It looks like material is not written into stage, this didn't help?
+//  stage->GetRootLayer()->Save(); //It looks like material is not written into stage, this didn't help?
 
   // Note: this is returning material instead of shader
   return usdMat.GetPrim();
