@@ -2081,10 +2081,6 @@ void MeshExportContext::copyVertexData(UsdTimeCode time)
 //----------------------------------------------------------------------------------------------------------------------
 void MeshExportContext::copyNormalData(UsdTimeCode time)
 {
-  //Naiqi's test
-  TfToken inter = mesh.GetNormalsInterpolation();
-  std::string interStr = inter.GetString();
-
   if(diffGeom & kNormals)
   {
     if(UsdAttribute normalsAttr = mesh.GetNormalsAttr())
@@ -2106,12 +2102,15 @@ void MeshExportContext::copyNormalData(UsdTimeCode time)
         else
         {
           VtArray<GfVec3f> normals(numNormals);
-          mesh.SetNormalsInterpolation(UsdGeomTokens->faceVarying);
           memcpy((GfVec3f*)normals.data(), normalsData, sizeof(float) * 3 * numNormals);
           normalsAttr.Set(normals, time);
 
-          // Also set the normal interpolation, so that there won't be tons of mismatch warnings during playback:
-          normalsAttr.SetMetadata (UsdGeomTokens->interpolation, UsdGeomTokens->vertex);
+          // When normal number is aligned with vertices, set "vertex" interpolation,
+          // when normal number is aligned with facevertices, set "faceVarying" interpolation
+          if(numNormals == fnMesh.numVertices())
+            normalsAttr.SetMetadata(UsdGeomTokens->interpolation, UsdGeomTokens->vertex);
+          if(numNormals == fnMesh.numFaceVertices())
+            mesh.SetNormalsInterpolation(UsdGeomTokens->faceVarying);
         }
       }
       else
