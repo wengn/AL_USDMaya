@@ -64,11 +64,13 @@ MString usdNameToAIName(std::string usdAttrName)
   if(usdAttrName == "roughness")
     return MString("specularRoughness");
   if(usdAttrName == "metallic")
-    return MString("mentalness");
+    return MString("metalness");
   if(usdAttrName == "clearcoat")
     return MString("coat");
   if(usdAttrName == "clearcoatRoughness")
     return MString("coatRoughness");
+
+  return MString("");
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -444,7 +446,11 @@ ExportFlag AIPreview::canExport(const MObject& obj)
   if(obj.hasFn(MFn::kShadingEngine))   //Now exporting arnold shading engine
   {
     MFnDependencyNode depFn(obj, &status);
-    if(std::string(depFn.name().asChar()).find("ai") != std::string::npos)
+    MPlug surfaceShaderPlug = depFn.findPlug("surfaceShader", &status);
+    MPlugArray connectedPlugs;
+    surfaceShaderPlug.connectedTo(connectedPlugs, true, false, &status);
+    MFnDependencyNode shaderFn(connectedPlugs[0].node(&status), &status);
+    if(std::string(shaderFn.typeName().asChar()).find("aiStandardSurface") != std::string::npos)
         return ExportFlag::kFallbackSupport;
   }
   return ExportFlag::kNotSupported;
