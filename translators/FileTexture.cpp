@@ -241,9 +241,23 @@ UsdPrim FileTexture::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPa
   UsdShadeOutput test1 = uvTextureShader.CreateOutput(TfToken("rgb"), SdfValueTypeNames->Float3);
   UsdShadeOutput test2 = uvTextureShader.CreateOutput(TfToken("a"), SdfValueTypeNames->Float);
 
+  // If this node is actually connecting to bump node, set up "scale" and "bias" value so that
+  // it can directly connect to UsdPreviewSurface
+  MPlug outColorPlug = depFn.findPlug("outColor");
+  MPlug outAlphaPlug = depFn.findPlug("outAlpha");
+  MPlugArray colorConnectedPlugs;
+  MPlugArray alphaConnectedPlugs;
+  outColorPlug.connectedTo(colorConnectedPlugs, false, true, &status);
+  outAlphaPlug.connectedTo(alphaConnectedPlugs, false, true, &status);
+  if(colorConnectedPlugs.length() > 0 && colorConnectedPlugs[0].name() == MString("input")
+     || (alphaConnectedPlugs.length() >0 && alphaConnectedPlugs[0].name() == MString("bumpValue"))) //This node is connected to aiNormalMap or a maya bump2d node
+    uvTextureShader.GetInput(TfToken("scale")).Set(GfVec4f(2.0, 2.0, 2.0, 2.0));
+    uvTextureShader.GetInput(TfToken("bias")).Set(GfVec4f(-1.0, -1.0, -1.0, -1.0));
+
   // Handle the place2dtexture node
   UsdPrim primvarReader = exportPlace2dTexture(stage, obj, usdPath, params);
   uvInput.ConnectToSource(UsdShadeShader(primvarReader).GetOutput(TfToken("result")));
+
 
   return uvTextureShader.GetPrim();
 }

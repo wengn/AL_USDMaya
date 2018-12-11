@@ -917,8 +917,12 @@ void Export::checkShapeShading(MDagPath shapePath, SdfPath& usdPath)
       {
         //Find the arnold shader
         MFnDependencyNode shaderEnFn(shaderEngines[j]);
-        std::string shaderEnName(shaderEnFn.name().asChar());
-        if(shaderEnName.find("ai") == std::string::npos)
+        MPlug surfaceShaderPlug = shaderEnFn.findPlug("surfaceShader", &status);
+        MPlugArray connectedPlugs;
+        surfaceShaderPlug.connectedTo(connectedPlugs, true, false, &status);
+        MFnDependencyNode shaderFn(connectedPlugs[0].node(), &status);
+        std::string shaderName(shaderFn.typeName().asChar());
+        if(shaderName.find("aiStandardSurface") == std::string::npos)
           continue;
 
         MObjectHandle aiSSNode(shaderEngines[j]); //It is actually finding all the Arnold shading engine
@@ -939,8 +943,12 @@ void Export::checkShapeShading(MDagPath shapePath, SdfPath& usdPath)
     {
       //Find the arnold shader
       MFnDependencyNode shaderEnFn(shaderEngines[j]);
-      std::string shaderEnName(shaderEnFn.name().asChar());
-      if(shaderEnName.find("ai") == std::string::npos)
+      MPlug surfaceShaderPlug = shaderEnFn.findPlug("surfaceShader", &status);
+      MPlugArray connectedPlugs;
+      surfaceShaderPlug.connectedTo(connectedPlugs, true, false, &status);
+      MFnDependencyNode shaderFn(connectedPlugs[0].node(), &status);
+      std::string shaderName(shaderFn.typeName().asChar());
+      if(shaderName.find("aiStandardSurface") == std::string::npos)
         continue;
 
       MObjectHandle aiSSNode(shaderEngines[j]);
@@ -978,7 +986,7 @@ void Export::exportAIShader()
         TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportAIShader: The surface shader is not valid.");
 
       std::string newMatNameStr = matPrim.GetName();
-      std::string shadingNodeName = newMatNameStr.substr(0, newMatNameStr.find('_'));
+      std::string shadingNodeName = newMatNameStr.substr(0, newMatNameStr.find_last_of('_'));
 
       // Travese all the m_shapeDagPaths list and find connected shape
       // Bind the material to the shape
@@ -993,10 +1001,12 @@ void Export::exportAIShader()
         for(unsigned int j = 0; j < shaders.length(); j++)
         {
           //Find the arnold shader
-          MFnDependencyNode shadersFn(shaders[j]);
-          if(std::string(shadersFn.name().asChar()).find(shadingNodeName) == std::string::npos)
+          MFnDependencyNode shadersEnFn(shaders[j]);
+          if(std::string(shadersEnFn.name().asChar()).find(shadingNodeName) == std::string::npos)
+          {
+            MGlobal::displayError("Shader node doesn't have a corresponding name in shading engine name!");
             continue;
-
+          }
           UsdPrim shapePrim = m_impl->stage()->GetPrimAtPath(m_shapeUsdPaths[it - m_shapeDagPaths.begin()]);
           if(!shapePrim)
             TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportAIShader: The shape prim is not valid.");
@@ -1036,7 +1046,10 @@ void Export::exportAIShader()
               surfaceShader.GetInput(TfToken("specularColor")).ConnectToSource(rgbOutput);
             if(destInputStr == MString("opacity"))
               surfaceShader.GetInput(TfToken("opacity")).ConnectToSource(rgbOutput);
+            if(destInputStr == MString("Input"))  //This is a file texture node connecting to aiNormalMap, it needs to connect to UsdPreviewSurface directly
+              surfaceShader.GetInput(TfToken("normal")).ConnectToSource(rgbOutput);
           }
+
           MPlug alphaPlug = fileNodeFn.findPlug("outAlpha", &status);
           MPlugArray conAlphaArray;
           alphaPlug.connectedTo(conAlphaArray, false, true, &status);
@@ -1044,13 +1057,15 @@ void Export::exportAIShader()
           if(conAlphaArray.length())
             conAttrName = std::string(MFnAttribute(conAlphaArray[0].attribute(&status)).name().asChar());
           if(conAttrName.compare("specularRoughness")==0)
-            uvTextureShader.GetOutput(TfToken("a")).ConnectToSource(surfaceShader.GetInput(TfToken("roughness")));
-          if(conAttrName.compare("mentalness") == 0)
-            uvTextureShader.GetOutput(TfToken("a")).ConnectToSource(surfaceShader.GetInput(TfToken("metallic")));
+            surfaceShader.GetInput(TfToken("roughness")).ConnectToSource(uvTextureShader.GetOutput(TfToken("a")));
+          if(conAttrName.compare("metalness") == 0)
+            surfaceShader.GetInput(TfToken("metallic")).ConnectToSource(uvTextureShader.GetOutput(TfToken("a")));
           if(conAttrName.compare("coat") == 0)
-            uvTextureShader.GetOutput(TfToken("a")).ConnectToSource(surfaceShader.GetInput(TfToken("clearcoat")));
+            surfaceShader.GetInput(TfToken("clearcoat")).ConnectToSource(uvTextureShader.GetOutput(TfToken("a")));
           if(conAttrName.compare("coatRoughness") == 0)
-            uvTextureShader.GetOutput(TfToken("a")).ConnectToSource(surfaceShader.GetInput(TfToken("clearcoatRoughness")));
+            surfaceShader.GetInput(TfToken("clearcoatRoughness")).ConnectToSource(uvTextureShader.GetOutput(TfToken("a")));
+          if(conAttrName.compare("bumpValue") == 0) //This is a file texture node connecting to a maya bump2d node, it needs to connect to UsdPreviewSurface directly
+            surfaceShader.GetInput(TfToken("normal")).ConnectToSource(uvTextureShader.GetOutput(TfToken("rgb")));
         }
       }
     }
@@ -1076,7 +1091,7 @@ std::vector<MObjectHandle> Export::checkFileTextureNode(const MObject& shadingEn
     std::string attrName(MFnAttribute(conPlugs[i].attribute(&status)).name().asChar());
     if(strstr(attrName.c_str(), "baseColor") || strstr(attrName.c_str(), "emissionColor") || strstr(attrName.c_str(), "specularColor")
        || strstr(attrName.c_str(), "specularRoughness") || strstr(attrName.c_str(), "transmission") || strstr(attrName.c_str(), "coat")
-       || strstr(attrName.c_str(), "coatRoughness") || strstr(attrName.c_str(), "opacity"))
+       || strstr(attrName.c_str(), "coatRoughness") || strstr(attrName.c_str(), "opacity") || strstr(attrName.c_str(), "metalness"))
     {
       MPlugArray srcPlugs;
       MPlug(conPlugs[i]).connectedTo(srcPlugs, true, false, &status);
@@ -1084,8 +1099,44 @@ std::vector<MObjectHandle> Export::checkFileTextureNode(const MObject& shadingEn
           continue;
       MObject srcNode = MPlug(srcPlugs[0]).node(&status);
 
-      if(srcNode.hasFn(MFn::kFileTexture))
-        fileNodeLists.push_back(MObjectHandle(MPlug(srcPlugs[0]).node(&status)));
+      if(srcNode.hasFn(MFn::kFileTexture) && std::find(fileNodeLists.begin(), fileNodeLists.end(), MObjectHandle(srcNode)) == fileNodeLists.end())
+        fileNodeLists.push_back(MObjectHandle(srcNode));
+    }
+
+    // Add this special case of bump maps. There is no notion of bump node,
+    // connect the UsdUVTexture node to UsdPreviewSurface directly.
+    if(strstr(attrName.c_str(), "normalCamera"))
+    {
+      MPlugArray srcPlugs;
+      MPlug(conPlugs[i]).connectedTo(srcPlugs, true, false, &status);
+      if(srcPlugs.length() == 0)
+        continue;
+      MFnDependencyNode bumpNodeFn(srcPlugs[0].node(&status));
+
+      MPlug bumpPlug;
+      MPlugArray outPlugs;
+      MObject bumpFileNode;
+      if(std::string(bumpNodeFn.typeName().asChar()) == "bump2d")
+      {
+         bumpPlug = bumpNodeFn.findPlug("bumpValue", &status);
+         bumpPlug.connectedTo(outPlugs, true, false, &status);
+         if(outPlugs.length() == 0)
+             continue;
+         bumpFileNode = outPlugs[0].node(&status);
+         if(bumpFileNode.hasFn(MFn::kFileTexture) && std::find(fileNodeLists.begin(), fileNodeLists.end(), MObjectHandle(bumpFileNode)) == fileNodeLists.end())
+             fileNodeLists.push_back(MObjectHandle(bumpFileNode));
+      }
+
+      if(std::string(bumpNodeFn.typeName().asChar()) == "aiNormalMap" )
+      {
+          bumpPlug = bumpNodeFn.findPlug("input", &status);
+          bumpPlug.connectedTo(outPlugs, true, false, &status);
+          if(outPlugs.length() == 0)
+              continue;
+          bumpFileNode = outPlugs[0].node(&status);
+          if(bumpFileNode.hasFn(MFn::kFileTexture) && std::find(fileNodeLists.begin(), fileNodeLists.end(), MObjectHandle(bumpFileNode)) == fileNodeLists.end())
+              fileNodeLists.push_back(MObjectHandle(bumpFileNode));
+      }
     }
   }
   return fileNodeLists;
