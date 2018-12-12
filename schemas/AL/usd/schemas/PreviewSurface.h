@@ -4,8 +4,9 @@
 // -- Author: Naiqi Weng
 // This was a test schema class OF_USD_PreviewSurface, for
 // creating corresponding prims for arnold surface shader
-// node. It didn't work correctly. For now, just use UsdshadeMaterial
-// for AIPreview and UsdShadeShder for FileTexture.
+// node. It didn't work correctly. For now, just use AIPreview class
+// for importing/exporting UsdshadeMaterial and its shader node
+// and use FileTexture class for importing/exporting UsdUVTexture node.
 
 #ifndef AL_USDMAYASCHEMAS_GENERATED_PREVIEWSURFACE_H
 #define AL_USDMAYASCHEMAS_GENERATED_PREVIEWSURFACE_H

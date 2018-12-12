@@ -222,7 +222,7 @@ void ProxyShapePostLoadProcess::createTranformChainsForSchemaPrims(
     for(auto it = schemaPrims.begin(); it != schemaPrims.end(); ++it)
     {
       const UsdPrim& usdPrim = *it;
-      std::string primName = usdPrim.GetName(); //naiqi's test
+
       if(usdPrim.IsValid())
       {
         SdfPath path = usdPrim.GetPath();
