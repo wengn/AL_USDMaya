@@ -426,7 +426,7 @@ class TestTranslator(unittest.TestCase):
         mc.AL_usdmaya_ProxyShapeImport(file=tempFile.name)
         self.assertEqual(0.25, mc.getAttr('directionalLightShape1.lightAngle'))
         self.assertEqual((1.0, 1.0, 0), mc.getAttr('directionalLightShape1.color')[0])
-        self.assertEqual(3, mc.getAttr('directionalLightShape1.intensity')
+        self.assertEqual(3, mc.getAttr('directionalLightShape1.intensity'))
         self.assertEqual((6.0, 7.0, 8.0), mc.getAttr('directionalLightShape1.pointWorld')[0])
 
     def testFrameRange_TranslatorExists(self):
