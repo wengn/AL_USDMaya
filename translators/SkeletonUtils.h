@@ -37,9 +37,13 @@ namespace translators {
 class SkeletonUtils
 {
 public:
-  static bool createJointHierarchy(const UsdSkelSkeletonQuery& skelQuery, MObject& parent, TranslatorContextPtr ctx, std::vector<MObjectHandle>& joints);
+  static bool createJointHierarchy(const UsdSkelSkeletonQuery& skelQuery, const MObject& parent, TranslatorContextPtr ctx, std::vector<MObject>& joints);
+
   static bool isSkelMayaGenerated(const UsdSkelSkeleton& skel);
-  static MStatus createMayaJointNode(const UsdPrim& prim, MObject& parent, TranslatorContextPtr ctx, MObject& createObj);
+  static MStatus createMayaJointNode(const UsdPrim& prim, const MObject& parent, TranslatorContextPtr ctx, MObject& createObj);
+private:
+  static bool createJointChains(const UsdSkelSkeletonQuery& skelQuery, const SdfPath& containerPath, TranslatorContextPtr ctx, std::vector<MObject>& joints);
+  static SdfPath makeJointPath(const SdfPath& containerPath, const TfToken& joint);
 };
 
 } // translators

@@ -58,17 +58,19 @@ MStatus Skeleton::import(const UsdPrim& prim, MObject& parent, MObject& createOb
   TranslatorContextPtr ctx = context();
   if(UsdSkelSkeletonQuery skelQuery = m_cache.GetSkelQuery(skel))
   {
-    MObject parentNode;
- /*   if(ctx->getMObject(skel.GetPrim().GetPath().GetParentPath(), parentNode, MFn::kJoint))  //TODO:This needs to be tested, what if its parent is root of the scene or skelRoot
+    MObjectHandle parentNode;
+    ctx->getMObject(skel.GetPrim().GetPath().GetParentPath(), parentNode, MFn::kInvalid);
+    if(!parentNode.isValid())
     {
-      //Build out a joint hierarchy
-      std::vector<MObject> joints;
-      if(SkeletonUtils::createJointHierarchy(skelQuery, parentNode, ctx, &joints))
-      {
-          //Create Bind pose
-      }
+      //Theoretically there should be always a SkelRoot node above a SkelSkeleton node
+      MGlobal::displayError("Could not find a valid root node for skeleton node" + MString(skel.GetPrim().GetPath().GetName().c_str()));
     }
-*/
+
+    std::vector<MObject> joints;
+    SkeletonUtils::createJointHierarchy(skelQuery, parentNode.object(), ctx, joints);
+
+
+    //TODO: bind pose
   }
 
 

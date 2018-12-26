@@ -19,6 +19,8 @@
 #include "AL/usdmaya/utils/DgNodeHelper.h"
 #include "AL/usdmaya/fileio/translators/DgNodeTranslator.h"
 
+#include "pxr/base/tf/token.h"
+
 #include "maya/MStatus.h"
 #include "maya/MFnIkJoint.h"
 #include "maya/MFnNumericAttribute.h"
@@ -29,7 +31,7 @@ namespace fileio {
 namespace translators {
 
 //----------------------------------------------------------------------------------------------------------------------
-bool SkeletonUtils::createJointHierarchy(const UsdSkelSkeletonQuery& skelQuery, MObject& parent, TranslatorContextPtr ctx, std::vector<MObjectHandle>& joints)
+bool SkeletonUtils::createJointHierarchy(const UsdSkelSkeletonQuery& skelQuery, const MObject& parent, TranslatorContextPtr ctx, std::vector<MObject>& joints)
 {
   MStatus status = MS::kSuccess;
   if(!skelQuery)
@@ -69,26 +71,78 @@ bool SkeletonUtils::createJointHierarchy(const UsdSkelSkeletonQuery& skelQuery, 
   status = fnJoint.addAttribute(attrObj);
   AL_MAYA_CHECK_ERROR2(status, "CreateJointHierarchy: Failed to add dynamic attribute: isUsdSkeleton. ");
 
-  const char* const errorString = "CameraTranslator: error setting value on attribute of maya joint.";
-  AL_MAYA_CHECK_ERROR(DgNodeTranslator::setBool(jointContainer, attrObj, true), errorString);
+  const char* const errorString = "CreateJointHierarchy: Error setting value on attribute of maya joint.";
+  AL_MAYA_CHECK_ERROR(DgNodeTranslator::setBool(jointContainer, attrObj, jointContainerIsSkeleton), errorString);
 
-  MObject drawStyleObj = fnJoint.attribute(MString("drawSyle"),&status);
+  // Set the draw style of this joint so that this extra joint is not drawn
+  MObject drawStyleObj = fnJoint.attribute(MString("drawStyle"),&status);
   AL_MAYA_CHECK_ERROR2(status, "CreateJointHierarchy: Failed to find joint attribute: drawStyle. ");
-  AL_MAYA_CHECK_ERROR(DgNodeTranslator::setInt32(jointContainer, drawStyleObj, 2), errorString); //TODO: This needs to be tested too.
+  AL_MAYA_CHECK_ERROR(DgNodeTranslator::setInt32(jointContainer, drawStyleObj, 2), errorString);
+
+
+  createJointChains(skelQuery, jointContainerPath, ctx, joints);
 
   //NOT-finished
   return true;
 
 }
 
+bool SkeletonUtils::createJointChains(const UsdSkelSkeletonQuery& skelQuery, const SdfPath& containerPath, TranslatorContextPtr ctx, std::vector<MObject>& joints)
+{
+  VtTokenArray jointNames = skelQuery.GetJointOrder();
+
+  auto numJoints = jointNames.size();
+  joints.resize(numJoints);
+
+  for (size_t i = 0; i < numJoints; ++i)
+  {
+    const SdfPath jointPath = makeJointPath(containerPath, jointNames[i]);
+
+    //But all the joints are not really prims? This should always return false?
+    if(!jointPath.IsPrimPath())
+      continue;
+
+    MObjectHandle parentJoint;
+    ctx->getMObject(jointPath.GetParentPath(), parentJoint, MFn::kJoint);
+    if (!parentJoint.isValid())
+    {
+      MGlobal::displayError("Could not find parent node for joint "+ MString(jointPath.GetText()));
+      return false;
+    }
+
+    if (!createMayaJointNode(skelQuery.GetPrim().GetStage()->GetPrimAtPath(jointPath), parentJoint.object(), ctx, joints[i])) {
+      return false;
+  }
+}
+  return true;
+}
+
+SdfPath SkeletonUtils::makeJointPath(const SdfPath& parentPath, const TfToken& joint)
+{
+  SdfPath jointPath(joint);
+  if(jointPath.IsAbsolutePath())
+  {
+    jointPath = jointPath.MakeRelativePath(SdfPath::AbsoluteRootPath());
+  }
+
+  if(!jointPath.IsEmpty())
+  {
+    return parentPath.AppendPath(jointPath);
+  }
+  return SdfPath();
+}
+
+
 //----------------------------------------------------------------------------------------------------------------------
-MStatus SkeletonUtils::createMayaJointNode(const UsdPrim& prim, MObject& parent, TranslatorContextPtr ctx, MObject& createObj)
+MStatus SkeletonUtils::createMayaJointNode(const UsdPrim& prim, const MObject& parent, TranslatorContextPtr ctx, MObject& createObj)
 {
   MStatus status = MS::kSuccess;
 
   MFnIkJoint fnJoint;
   createObj = fnJoint.create(parent, &status);
   AL_MAYA_CHECK_ERROR2(status, MString("unable to create joint."));
+  if (status == MS::kFailure)
+      return status;
 
   //Rename the node to have Sdf path as its name
   MFnDependencyNode fnDepNode(createObj, &status);
