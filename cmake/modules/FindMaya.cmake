@@ -161,14 +161,13 @@ find_path(MAYA_DEVKIT_INC_DIR
         "${MAYA_BASE_DIR}"
     PATH_SUFFIXES
         /devkit/plug-ins/
+        /devkitBase/devkit/plug-ins/
     DOC
         "Maya's devkit headers path"
 )
 
-#list(APPEND MAYA_INCLUDE_DIRS ${MAYA_DEVKIT_INC_DIR})
-#Naiq's change
 if(NOT "${MAYA_DEVKIT_INC_DIR}" STREQUAL "MAYA_DEVKIT_INC_DIR-NOTFOUND")
-   list(APPEND MAYA_INCLUDE_DIRS ${MAYA_DEVKIT_INC_DIR})
+    list(APPEND MAYA_INCLUDE_DIRS ${MAYA_DEVKIT_INC_DIR})
 endif()
 
 foreach(MAYA_LIB
