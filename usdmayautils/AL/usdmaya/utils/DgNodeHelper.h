@@ -1424,6 +1424,15 @@ public:
   AL_USDMAYA_UTILS_PUBLIC
   static MStatus setMatrix4x4(MObject node, MObject attr, const double* values);
 
+  /// \brief  sets a 4x4 matrix value on the specified node/plug
+  /// \param  node the node on which the attribute exists
+  /// \param  attr the handle to the attribute
+  /// \param  values the new value (as an array of 16 doubles)
+  /// \param  logic index of the specified plug
+  /// \return MS::kSuccess if all ok
+  AL_USDMAYA_UTILS_PUBLIC
+  static MStatus setMatrix4x4(MObject node, MObject attr, const double* const str, unsigned int index);
+
   /// \brief  sets a 4x4 matrix value on the specified node/attribute
   /// \param  node the node on which the attribute exists
   /// \param  attr the handle to the attribute

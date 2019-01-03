@@ -199,7 +199,7 @@ bool SkeletonUtils::createDagPose(const SdfPath& path, const std::vector<MObject
   status = dgMod.renameNode(dagPoseNode, MString(path.GetName().c_str()));
 
   if(ctx)
-    ctx->insertItem(path.GetText(), TfToken("dagPose"), dagPoseNode);
+    ctx->insertItem(path, TfToken("dagPose"), dagPoseNode);
 
   MFnDependencyNode dagPoseDep(dagPoseNode, &status);
   MPlug membersPlug = dagPoseDep.findPlug("members", &status);
@@ -248,19 +248,19 @@ bool SkeletonUtils::createDagPose(const SdfPath& path, const std::vector<MObject
     }
 
     const char* const errorString = "Skeleton Translator: error setting rest transformation on dagPose object. ";
-    MPlug elemWorldMatrix = worldMatrixPlug.elementByLogicalIndex(i);
-    AL_MAYA_CHECK_ERROR(DgNodeTranslator::setMatrix4x4(dagPoseNode, elemWorldMatrix, worldXforms[i].data()), errorString);
+    MObject worldMatrixAttr = dagPoseDep.attribute("worldMatrix");
+    AL_MAYA_CHECK_ERROR(DgNodeTranslator::setMatrix4x4(dagPoseNode, worldMatrixAttr, worldXforms[i].data(), i), errorString);
 
-    MPlug elemXformMatrix = xformMatrixPlug.elementByLogicalIndex(i);
-    AL_MAYA_CHECK_ERROR(DgNodeTranslator::setMatrix4x4(dagPoseNode, elemXformMatrix, localXforms[i].data()), errorString);
+    MObject xformMatrixAttr = dagPoseDep.attribute("xformMatrix");
+    AL_MAYA_CHECK_ERROR(DgNodeTranslator::setMatrix4x4(dagPoseNode, xformMatrixAttr, localXforms[i].data(), i), errorString);
 
   }
   status = dgMod.doIt();
   AL_MAYA_CHECK_ERROR2(status, MString("unable to execute dgModifier operations."));
 
   const char* const errorString2 = "Skeleton Translator: error setting rest transformation on dagPose object. ";
-  MPlug bindPosePlug = dagPoseDep.findPlug("bindPose", status);
-  AL_MAYA_CHECK_ERROR(DgNodeTranslator::setBool(dagPoseNode, bindPosePlug, true), errorString2);
+  MObject bindPose = dagPoseDep.attribute("bindPose", &status);
+  AL_MAYA_CHECK_ERROR(DgNodeTranslator::setBool(dagPoseNode, bindPose, true), errorString2);
 
   return true;
 }
@@ -507,14 +507,14 @@ bool SkeletonUtils::setAnimationOnTransform(const MObject& transformObj, const s
     if(convertUsdMatrixToComponents(xform, t, r, s))
     {
        MFnDependencyNode fnDep(transformObj, &status);
-       MObject transPlug = fnDep.findPlug("translate", &status);
-       MObject rotatePlug = fnDep.findPlug("rotate", &status);
-       MObject scalePlug = fnDep.findPlug("scale", &status);
+       MObject transAttr = fnDep.attribute("translate", &status);
+       MObject rotateAttr = fnDep.attribute("rotate", &status);
+       MObject scaleAttr = fnDep.attribute("scale", &status);
 
        const char* const errorString = "Skeleton Translator: error setting transformation animation on transform object. ";
-       AL_MAYA_CHECK_ERROR(DgNodeTranslator::setVec3(transformObj,transPlug, t[0], t[1], t[2]), errorString);
-       AL_MAYA_CHECK_ERROR(DgNodeTranslator::setVec3(transformObj,rotatePlug, r[0], r[1], r[2]), errorString);
-       AL_MAYA_CHECK_ERROR(DgNodeTranslator::setVec3(transformObj,scalePlug, s[0], s[1], s[2]), errorString);
+       AL_MAYA_CHECK_ERROR(DgNodeTranslator::setVec3(transformObj, transAttr, t[0], t[1], t[2]), errorString);
+       AL_MAYA_CHECK_ERROR(DgNodeTranslator::setVec3(transformObj, rotateAttr, r[0], r[1], r[2]), errorString);
+       AL_MAYA_CHECK_ERROR(DgNodeTranslator::setVec3(transformObj, scaleAttr, s[0], s[1], s[2]), errorString);
 
       }
   }
@@ -570,11 +570,6 @@ bool SkeletonUtils::setAnimPlugData(const MObject& obj, const MString& attr, MDo
     if(!plug.isKeyable())
       status = plug.setKeyable(true);
 
-    //Test
-    for(int i = 0; i < values.length();i++)
-    {
-        std::cout<<"the decomposed values are "<<values[i]<<","<<std::endl;
-    }
     MFnAnimCurve animFn;
     MObject animObj = animFn.create(plug, nullptr, &status);
     status = animFn.addKeys(&times, &values);

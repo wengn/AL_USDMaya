@@ -3325,11 +3325,32 @@ MStatus DgNodeHelper::setString(MObject node, MObject attr, const char* const st
 MStatus DgNodeHelper::setMatrix4x4(MObject node, MObject attr, const double* const str)
 {
   const char* const errorString = "matrix4x4 error - unimplemented";
-  MPlug plug(node, attr);
   MFnMatrixData fn;
-  typedef double hack[4];
-  MObject data = fn.create(MMatrix((const hack*)str));
+  MMatrix m;
+  m[0][0] = str[0]; m[0][1] = str[1]; m[0][2] = str[2]; m[0][3] = str[3];
+  m[1][0] = str[4]; m[1][1] = str[5]; m[1][2] = str[6]; m[1][3] = str[7];
+  m[2][0] = str[8]; m[2][1] = str[9]; m[2][2] = str[10]; m[2][3] = str[11];
+  m[3][0] = str[12]; m[3][1] = str[13]; m[3][2] = str[14]; m[3][3] = str[15];
+  MObject data = fn.create(m);
+  MPlug plug(node, attr);
   AL_MAYA_CHECK_ERROR(plug.setValue(data), errorString);
+  return MS::kSuccess;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+MStatus DgNodeHelper::setMatrix4x4(MObject node, MObject attr, const double* const str, unsigned int index)
+{
+  const char* const errorString = "matrix4x4 error - unimplemented";
+  MFnMatrixData fn;
+  MMatrix m;
+  m[0][0] = str[0]; m[0][1] = str[1]; m[0][2] = str[2]; m[0][3] = str[3];
+  m[1][0] = str[4]; m[1][1] = str[5]; m[1][2] = str[6]; m[1][3] = str[7];
+  m[2][0] = str[8]; m[2][1] = str[9]; m[2][2] = str[10]; m[2][3] = str[11];
+  m[3][0] = str[12]; m[3][1] = str[13]; m[3][2] = str[14]; m[3][3] = str[15];
+  MObject data = fn.create(m);
+  MPlug plug(node, attr);
+  MPlug elemPlug = plug.elementByLogicalIndex(index);
+  AL_MAYA_CHECK_ERROR(elemPlug.setValue(data), errorString);
   return MS::kSuccess;
 }
 
