@@ -75,7 +75,8 @@ void TranslatorContext::updatePrimTypes()
   {
     SdfPath path(it->path());
     UsdPrim prim = stage->GetPrimAtPath(path);
-    if(!prim)
+    if(!prim && it->type() != TfToken("joints"))  //Naiqi's change
+    //if(!prim)
     {
       it = m_primMapping.erase(it);
     }
@@ -233,6 +234,26 @@ void TranslatorContext::insertItem(const UsdPrim& prim, MObjectHandle object)
   }
 }
 
+//----------------------------------------------------------------------------------------------------------------------
+void TranslatorContext::insertItem(const SdfPath& path, const TfToken& type, MObjectHandle object)
+{
+  TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("TranslatorContext::insertItem adding entry %s[%s]\n", path.GetText(), object.object().apiTypeStr());
+  auto iter = findLocation(path);
+  if(iter == m_primMapping.end() || iter->path() != path)
+  {
+    iter = m_primMapping.insert(iter, PrimLookup(path, type, object.object()));
+  }
+  iter->createdNodes().push_back(object);
+
+  if(object.object() == MObject::kNullObj)
+  {
+    TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("TranslatorContext::insertItem primPath=%s primType=%s to null MObject\n", path.GetText(), iter->type().GetText());
+  }
+  else
+  {
+    TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("TranslatorContext::insertItem primPath=%s primType=%s to MObject type %s\n", path.GetText(), iter->type().GetText(), object.object().apiTypeStr());
+  }
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 void TranslatorContext::removeItems(const SdfPath& path)

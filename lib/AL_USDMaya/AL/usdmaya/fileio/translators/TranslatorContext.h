@@ -182,6 +182,14 @@ public:
   AL_USDMAYA_PUBLIC
   void insertItem(const UsdPrim& prim, MObjectHandle object);
 
+  /// \brief  If within your custom translator plug-in you need to create any maya nodes, associate that maya
+  ///         node with the prim path by calling this method
+  /// \param  path the usd prim path
+  /// \param  type the usd type token
+  /// \param  object the handle to the maya node you have created.
+  AL_USDMAYA_PUBLIC
+  void insertItem(const SdfPath& path, const TfToken& type, MObjectHandle object);
+
   /// \brief  during a variant switch, if we lose a prim, then it's path will be passed into this method, and
   ///         all the maya nodes that were created for it will be nuked.
   /// \param  prim the usd prim that was removed due to a variant switch

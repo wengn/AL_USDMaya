@@ -15,10 +15,10 @@
 //
 
 
-#include "Skeleton.h"
-#include "SkeletonUtils.h"
+#include "SkelRoot.h"
 
 #include "pxr/usd/usdSkel/skeleton.h"
+#include "pxr/usd/usdSkel/root.h"
 #include "pxr/usd/usdSkel/skeletonQuery.h"
 
 
@@ -33,64 +33,51 @@ namespace usdmaya {
 namespace fileio {
 namespace translators {
 
-AL_USDMAYA_DEFINE_TRANSLATOR(Skeleton, PXR_NS::UsdSkelSkeleton)
+AL_USDMAYA_DEFINE_TRANSLATOR(SkelRoot, PXR_NS::UsdSkelRoot)
 
 //----------------------------------------------------------------------------------------------------------------------
-MStatus Skeleton::initialize()
+MStatus SkelRoot::initialize()
 {
     MStatus status = MS::kSuccess;
     return status;
 }
 
+
 //----------------------------------------------------------------------------------------------------------------------
-MStatus Skeleton::import(const UsdPrim& prim, MObject& parent, MObject& createObj)
+MStatus SkelRoot::import(const UsdPrim& prim, MObject& parent, MObject& createObj)
 {
   MStatus status = MS::kSuccess;
 
-  UsdSkelSkeleton skel(prim);
+  UsdSkelRoot root(prim);
   if(!prim.IsValid())
   {
-    TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("SkeletonTranslator::import prim invalid\n");
+    TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("SkeletonRootTranslator::import prim invalid\n");
     return MS::kFailure;
   }
 
-  TranslatorContextPtr ctx = context();
-  if(UsdSkelSkeletonQuery skelQuery = m_cache.GetSkelQuery(skel))
-  {
-    MObjectHandle parentNode;
-    ctx->getMObject(prim.GetPath().GetParentPath(), parentNode, MFn::kInvalid); //It needs to find a valid parent, which is UsdSkelRoot
-    if(!parentNode.isValid())
-    {
-      // Theoretically there should be always a SkelRoot node above a SkelSkeleton node
-      // This is solved by adding a schema translator for UsdSkelRoot
-      MGlobal::displayError("Could not find a valid root node for skeleton node" + MString(skel.GetPrim().GetPath().GetName().c_str()));
-    }
+  MFnTransform fnTransform;
+  createObj = fnTransform.create(parent, &status);
+  fnTransform.setName(MString(prim.GetName().GetText()), &status);
 
-    std::vector<MObject> joints;
-    if(SkeletonUtils::createJointHierarchy(skelQuery, parentNode.object(), ctx, joints))
-    {
-      // Add a dagPose node to hold the rest pose.
-      // This is not necessary for skinning in Maya, but is necessary in order to properly
-      // round-trip the Skeleton's restTransforms, and is a requirement of some exporters.
-      // The dagPose command also will not work without this.
-      MObject bindPose;
-      if(SkeletonUtils::createBindPose(skelQuery, joints, ctx, bindPose))
-        return status;
-    }
+  TranslatorContextPtr ctx = context();
+  if(ctx)
+  {
+    ctx->insertItem(prim, createObj);
   }
 
-  return MS::kFailure;
+
+  return status;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-MStatus Skeleton::update(const UsdPrim& prim)
+MStatus SkelRoot::update(const UsdPrim& prim)
 {
   MStatus status = MS::kSuccess;
   return status;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-MStatus Skeleton::tearDown(const SdfPath& path)
+MStatus SkelRoot::tearDown(const SdfPath& path)
 {
   MStatus status = MS::kSuccess;
   return status;

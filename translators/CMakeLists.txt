@@ -19,6 +19,7 @@ add_library(${TRANSLATORS_PACKAGE}
     DirectionalLight.cpp
     Skeleton.cpp
     SkeletonUtils.cpp
+    SkelRoot.cpp
 )
 
 set(arg_PUBLIC_HEADER_FILES
