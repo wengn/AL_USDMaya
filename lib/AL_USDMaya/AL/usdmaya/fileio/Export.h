@@ -90,8 +90,9 @@ private:
   translators::TranslatorManufacture m_translatorManufacture;
 
 
-  void checkShapeShading(MDagPath shapePath, SdfPath& usdPath); //Naiqi's change 
+  void checkShapeShading(MDagPath shapePath, SdfPath& usdPath); //Naiqi's change, this function is deprecated due to the requirement of exporting material separately
   void exportAIShader(); //Naiqi's change
+  void exportSelectedAIShader(); // Only export selected material to individual file
   std::vector<MObjectHandle> checkFileTextureNode(const MObject& shadingEngineObj); //Naiqi's change
   std::vector<MObjectHandle> m_aiSurfaceShaders; //Naiqi's change
   std::vector<SdfPath> m_shapeUsdPaths; //Naiqi's change
