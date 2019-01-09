@@ -21,8 +21,10 @@
 #include "maya/MFloatPointArray.h"
 #include "maya/MVectorArray.h"
 #include "maya/MIntArray.h"
+#include "maya/MFnTypedAttribute.h"
 #include "maya/MFnMesh.h"
 #include "maya/MFnSet.h"
+#include "maya/MFnStringData.h"
 #include "maya/MFileIO.h"
 #include "maya/MNodeClass.h"
 
@@ -260,11 +262,20 @@ MStatus Mesh::postImport(const UsdPrim& prim)
 
   //TODO: check if it is a valid geomPrim
   UsdShadeMaterialBindingAPI bindAPI(prim);
-  SdfPath matPath = bindAPI.GetDirectBinding(UsdShadeTokens->preview).GetMaterialPath();
+  if(!bindAPI)
+      return MS::kFailure;
+  SdfPath matPath = bindAPI.GetDirectBinding().GetMaterialPath();
 
   MSelectionList matList;
   MGlobal::getSelectionListByName(MString(matPath.GetName().c_str()), matList);
-  if( matList.length() > 1)
+
+  if(matList.length() == 0)
+  {
+      std::cout<<"Could not find material with name: "<<matPath.GetName().c_str()<<std::endl;
+      return MS::kFailure;
+  }
+
+  if(matList.length() > 1)
   {
     // Assume there are no more than one material with the same name
     std::cout<<"There are more than one material with the same name: "<<matPath.GetName().c_str()<<std::endl;
@@ -277,15 +288,48 @@ MStatus Mesh::postImport(const UsdPrim& prim)
 
   MObjectHandle shapeNode;
   context()->getMObject(prim.GetPath(), shapeNode, MFn::kMesh);
-  if( shapeNode.isValid())
+  if(shapeNode.isValid())
   {
     // TODO: need to consider situations that part of the shape is in the set
     MFnDependencyNode shapeFn(shapeNode.object(), &status);
-    MObject instObjGroupsAttr = shapeFn.attribute("instObjGroups");
-    MObject dagSetMemberAttr = matNodeFn.attribute("dagSetMembers");
 
+    //Add a custom attribute to record usdPath, so that when material is written out, it can find write out corresponding shape usd path
+    MFnStringData strData;
+    MObject strObj = strData.create(MString(prim.GetPath().GetText()), &status);
+    MFnTypedAttribute attr;
+    MObject attrObj = attr.create("sdfPath", "spt", MFnData::kString, strObj);
+    shapeFn.addAttribute(attrObj, MFnDependencyNode::kLocalDynamicAttr);
+
+    MPlug instObjGroupsPlug = shapeFn.findPlug("instObjGroups");
+    // Currently assuming a shape is only connected to one shader
+    MPlug instObjGroupsElemPlug = instObjGroupsPlug.elementByLogicalIndex(0);
     MDGModifier dgMod;
-    status = dgMod.connect(shapeNode.object(), instObjGroupsAttr, matNode, dagSetMemberAttr);
+
+    // Need to get rid of old connections if there is any
+    MFnMesh meshFn(shapeNode.object(), &status);
+    MObjectArray shaders;
+    MIntArray indices;
+    meshFn.getConnectedShaders(0, shaders, indices);
+    if(shaders.length() != 0)
+    {
+      for(unsigned int i = 0; i < shaders.length(); i++)
+      {
+        MFnDependencyNode shaderFn(shaders[i]);
+        MPlugArray destArray;
+        instObjGroupsElemPlug.connectedTo(destArray, false, true, &status);
+
+        for(unsigned int j = 0; j < destArray.length(); j++)
+        {
+          std::string testStr(destArray[j].partialName().asChar());
+          if(destArray[j].partialName() == MString("dsm"))
+            status = dgMod.disconnect(instObjGroupsElemPlug, destArray[j]);
+        }
+      }
+    }
+
+    MPlug dagSetMemberPlug = matNodeFn.findPlug("dagSetMembers");
+    MPlug dagSetMemberElemPlug = dagSetMemberPlug.elementByLogicalIndex(dagSetMemberPlug.numElements()+1);
+    status = dgMod.connect(instObjGroupsElemPlug, dagSetMemberElemPlug);
     status = dgMod.doIt();
   }
   else

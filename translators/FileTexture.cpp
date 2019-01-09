@@ -135,28 +135,25 @@ MStatus FileTexture::updateMayaAttributes(MObject to, const UsdPrim& prim)
   MStatus status = MS::kSuccess;
   UsdShadeShader fileShader(prim);
 
-  int tilingMode = 0;
   VtValue defaultVal;
   std::string filePath;
+  if(auto fileAttr = fileShader.GetInput(TfToken("file")))
+  {
+    fileAttr.Get(&defaultVal);
+    const SdfAssetPath defaultPath = defaultVal.Get<SdfAssetPath>();
+    filePath = defaultPath.GetAssetPath();
+  }
 
   const char* const errorString = "FileTextureTranslator: error setting file node parameters";
-  if(UsdAttribute tileAttr = prim.GetAttribute(TfToken("maya_uvTilingMode")))
+
+  // very basic check to see if filePath has the format of "textures/occlusion.<UDIM>.tex"
+  if(filePath.find("<") != std::string::npos && filePath.find(">") != std::string::npos)
   {
-    tileAttr.Get(&tilingMode);
-    if(auto fileAttr = fileShader.GetInput(TfToken("file")))
-    {
-      fileAttr.Get(&defaultVal);
-      const SdfAssetPath defaultPath = defaultVal.Get<SdfAssetPath>();
-      filePath = defaultPath.GetAssetPath();
-    }
-
-
-    if(tilingMode == 0)
-      AL_MAYA_CHECK_ERROR(DgNodeTranslator::setString(to, m_fileTextureName, filePath), errorString);
-    if(tilingMode == 3)
-      AL_MAYA_CHECK_ERROR(DgNodeTranslator::setString(to, m_computedFileTextureNamePattern, filePath), errorString);
-    AL_MAYA_CHECK_ERROR(DgNodeTranslator::setInt64(to, m_uvTilingMode, tilingMode), errorString);
+    filePath.replace(filePath.find("<"), filePath.find(">"), "1001");
+    AL_MAYA_CHECK_ERROR(DgNodeTranslator::setInt64(to, m_uvTilingMode, 3), errorString);
   }
+  AL_MAYA_CHECK_ERROR(DgNodeTranslator::setString(to, m_fileTextureName, filePath), errorString);
+
 
   auto fallbackAttr = fileShader.GetInput(TfToken("fallback"));
   VtValue fallback;

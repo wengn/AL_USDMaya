@@ -892,8 +892,6 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
               refType = m_params.m_mergeTransforms ? kShapeReference : kTransformReference;
             }
             exportShapeProc(shapePath, fnTransform, shapeUsdPath, refType);
-
-            checkShapeShading(shapePath, shapeUsdPath);
           }
           else
           {
@@ -937,7 +935,7 @@ void Export::checkShapeShading(MDagPath shapePath, SdfPath& usdPath)
   MString dagPathStr = shapePath.fullPathName();
 
   MFnMesh meshNode(shapePath, &status);
-  AL_MAYA_CHECK_ERROR2(status, MString("Wrong creating meshNode"));
+  AL_MAYA_CHECK_ERROR2(status, MString("There is no valid mesh node for this material. You need to convert proxy shape to maya mesh to be able to write out shading information"));
 
   if(shapePath.isInstanced())
   {
@@ -1023,9 +1021,9 @@ void Export::exportAIShader()
 
       // Travese all the m_shapeDagPaths list and find connected shape
       // Bind the material to the shape
-      for(std::vector<MDagPath>::iterator it = m_shapeDagPaths.begin(); it != m_shapeDagPaths.end(); ++it)
+      for(std::vector<MDagPath>::iterator it2 = m_shapeDagPaths.begin(); it2 != m_shapeDagPaths.end(); ++it2)
       {
-        MFnMesh meshFn(*it, &status);
+        MFnMesh meshFn(*it2, &status);
         MObjectArray shaders;
         MIntArray indices;
 
@@ -1040,7 +1038,7 @@ void Export::exportAIShader()
             MGlobal::displayError("Shader node doesn't have a corresponding name in shading engine name!");
             continue;
           }
-          UsdPrim shapePrim = m_impl->stage()->GetPrimAtPath(m_shapeUsdPaths[it - m_shapeDagPaths.begin()]);
+          UsdPrim shapePrim = m_impl->stage()->GetPrimAtPath(m_shapeUsdPaths[it2 - m_shapeDagPaths.begin()]);
           if(!shapePrim)
             TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportAIShader: The shape prim is not valid.");
           UsdShadeMaterialBindingAPI bindAPI(shapePrim);
@@ -1103,6 +1101,129 @@ void Export::exportAIShader()
       }
     }
   }
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+void Export::exportSelectedAIShader()
+{
+   if(m_params.m_selected == false || m_params.m_nodes.length() == 0)
+   {
+     TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportSelectedAIShader: You need to at lease select one shading engine node and set exporing selected flag to be true");
+     return;
+   }
+   MStatus status = MS::kSuccess;
+
+   for(unsigned int i = 0; i < m_params.m_nodes.length(); i++)
+   {
+     MObject depNode;
+     m_params.m_nodes.getDependNode(i, depNode);
+     MFnDependencyNode shaderFn(depNode, &status);
+     if(std::string(shaderFn.typeName().asChar()).find("aiStandardSurface") == std::string::npos)
+       continue;
+
+     //If it is not an anorld shader, bail
+     MPlug outColorPlug = shaderFn.findPlug("outColor", &status);
+     MPlugArray connectedPlugs;
+     outColorPlug.connectedTo(connectedPlugs, false, true, &status);
+     if(connectedPlugs.length() == 0)
+        continue;
+     MObject shadingEngineNode(connectedPlugs[0].node(&status));
+     MFnDependencyNode shaderEngineFn(shadingEngineNode, &status);
+     if(std::string(shaderEngineFn.typeName().asChar()).find("shadingEngine") == std::string::npos)
+     {
+       TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportSelectedAIShader: The selected shader does not have a connected shading engine node.");
+       return;
+     }
+
+     translators::TranslatorManufacture::RefPtr translatorPtr = m_translatorManufacture.get(shadingEngineNode);
+     if (translatorPtr)
+     {
+       SdfPath emptyPath;
+       UsdPrim matPrim = translatorPtr->exportObject(m_impl->stage(), shadingEngineNode, emptyPath, m_params);
+       UsdShadeMaterial usdMat(matPrim);
+       if(!usdMat)
+         TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportSelectedAIShader: UsdShadeMaterial is not created correctly.");
+       UsdShadeShader surfaceShader = usdMat.ComputeSurfaceSource();
+       if(!surfaceShader)
+         TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportSelectedAIShader: The surface shader is not valid.");
+
+       std::string newMatNameStr = matPrim.GetName();
+       std::string shadingNodeName = newMatNameStr.substr(0, newMatNameStr.find_last_of('_'));
+
+       // Find connected shapes
+       MPlug dagSetMemberPlugs = shaderEngineFn.findPlug("dagSetMembers", &status);
+       MPlugArray connectedArray;
+       dagSetMemberPlugs.connectedTo(connectedArray, true, false, &status);
+       for(unsigned int j = 0; j < connectedArray.length(); j++)
+       {
+         if(connectedArray[j].partialName() == "instObjGroups")
+         {
+           MFnMesh meshFn(connectedArray[j].node(&status), &status);
+
+           UsdPrim shapePrim = m_impl->stage()->GetPrimAtPath(SdfPath(meshFn.findPlug("sdfPath").asString().asChar()));
+           if(!shapePrim)
+             TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportSelectedAIShader: The shape prim is not valid.");
+           UsdShadeMaterialBindingAPI bindAPI(shapePrim);
+           if(usdMat && shapePrim)
+             bindAPI.Bind(usdMat, UsdShadeTokens->fallbackStrength, UsdShadeTokens->preview);
+         }
+       }
+
+       // For every surface shader, need to find if there is any texture connected to its different color channel
+       std::vector<MObjectHandle> fileNodes = checkFileTextureNode(shadingEngineNode);
+       for(std::vector<MObjectHandle>::iterator itFile = fileNodes.begin(); itFile != fileNodes.end(); ++itFile)
+       {
+         translators::TranslatorManufacture::RefPtr translatorFilePtr = m_translatorManufacture.get((*itFile).object());
+         if(translatorFilePtr)
+         {
+           SdfPath parentPath = usdMat.GetPath();
+           UsdPrim fileNodePrim = translatorFilePtr->exportObject(m_impl->stage(), (*itFile).object(), parentPath, m_params);
+
+           // Connect this uvTexture node to aiSurfaceShader node
+           // Find out which attribute is connected to which on shader node
+           MFnDependencyNode fileNodeFn((*itFile).object());
+           MPlug colorPlug = fileNodeFn.findPlug("outColor", &status);
+           MPlugArray conColorArray;
+           colorPlug.connectedTo(conColorArray, false, true, &status);
+
+           UsdShadeShader uvTextureShader(fileNodePrim);
+           if(conColorArray.length())
+           {
+             UsdShadeOutput rgbOutput = uvTextureShader.GetOutput(TfToken("rgb"));
+             MString destInputStr = MFnAttribute(conColorArray[0].attribute()).name();
+             if (destInputStr == MString("baseColor"))
+               surfaceShader.GetInput(TfToken("diffuseColor")).ConnectToSource(rgbOutput);
+             if (destInputStr == MString("emissionColor"))
+               surfaceShader.GetInput(TfToken("emissiveColor")).ConnectToSource(rgbOutput);
+             if (destInputStr == MString("specularColor"))
+               surfaceShader.GetInput(TfToken("specularColor")).ConnectToSource(rgbOutput);
+             if(destInputStr == MString("opacity"))
+               surfaceShader.GetInput(TfToken("opacity")).ConnectToSource(rgbOutput);
+             if(destInputStr == MString("Input"))  //This is a file texture node connecting to aiNormalMap, it needs to connect to UsdPreviewSurface directly
+               surfaceShader.GetInput(TfToken("normal")).ConnectToSource(rgbOutput);
+           }
+
+           MPlug alphaPlug = fileNodeFn.findPlug("outAlpha", &status);
+           MPlugArray conAlphaArray;
+           alphaPlug.connectedTo(conAlphaArray, false, true, &status);
+           std::string conAttrName;
+           if(conAlphaArray.length())
+             conAttrName = std::string(MFnAttribute(conAlphaArray[0].attribute(&status)).name().asChar());
+           if(conAttrName.compare("specularRoughness")==0)
+             surfaceShader.GetInput(TfToken("roughness")).ConnectToSource(uvTextureShader.GetOutput(TfToken("a")));
+           if(conAttrName.compare("metalness") == 0)
+             surfaceShader.GetInput(TfToken("metallic")).ConnectToSource(uvTextureShader.GetOutput(TfToken("a")));
+           if(conAttrName.compare("coat") == 0)
+             surfaceShader.GetInput(TfToken("clearcoat")).ConnectToSource(uvTextureShader.GetOutput(TfToken("a")));
+           if(conAttrName.compare("coatRoughness") == 0)
+             surfaceShader.GetInput(TfToken("clearcoatRoughness")).ConnectToSource(uvTextureShader.GetOutput(TfToken("a")));
+           if(conAttrName.compare("bumpValue") == 0) //This is a file texture node connecting to a maya bump2d node, it needs to connect to UsdPreviewSurface directly
+             surfaceShader.GetInput(TfToken("normal")).ConnectToSource(uvTextureShader.GetOutput(TfToken("rgb")));
+         }
+       }
+    }
+   }
+
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -1221,7 +1342,7 @@ void Export::doExport()
     }
   }
 
-  exportAIShader(); //Naiqi's test
+  exportSelectedAIShader();
 
   if(m_params.m_animTranslator)
   {
