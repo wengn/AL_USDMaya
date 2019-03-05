@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -std=c++11 -msse3  -std=c++11 -Wall -Wno-deprecated -Wno-deprecated-declarations -Wno-unused-local-typedefs  -shared -Wl,-soname,libAL_EventSystem.so -o libAL_EventSystem.so CMakeFiles/AL_EventSystem.dir/event/EventHandler.cpp.o 
