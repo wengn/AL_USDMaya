@@ -1,0 +1,32 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../utils/AL/event/./Api.h
+
+../utils/AL/event/EventHandler.h
+./Api.h
+../utils/AL/event/./Api.h
+string
+-
+vector
+-
+unordered_map
+-
+cstdarg
+-
+
+/home/naiqi/repos/AL_USDMaya/utils/AL/event/EventHandler.cpp
+algorithm
+-
+cstring
+-
+iostream
+-
+AL/event/EventHandler.h
+/home/naiqi/repos/AL_USDMaya/utils/AL/event/AL/event/EventHandler.h
+
