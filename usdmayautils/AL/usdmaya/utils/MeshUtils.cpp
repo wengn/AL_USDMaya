@@ -28,18 +28,6 @@ namespace AL {
 namespace usdmaya {
 namespace utils {
 
-enum GlimpseUserDataTypes
-{
-  kInt = 2,
-  kFloat = 4,
-  kInt2 = 7,
-  kInt3 = 8,
-  kVector = 13,
-  kColor = 15,
-  kString = 16,
-  kMatrix = 17
-};
-
 //----------------------------------------------------------------------------------------------------------------------
 void floatToDouble(double* output, const float* const input, size_t count)
 {
@@ -519,21 +507,34 @@ bool MeshImportContext::applyVertexNormals()
 {
   if(normals.length())
   {
-    MIntArray normalsFaceIds;
-    normalsFaceIds.setLength(connects.length());
-    int32_t* normalsFaceIdsPtr = &normalsFaceIds[0];
-    if (normals.length() == uint32_t(fnMesh.numFaceVertices()))
-    {
-      for (uint32_t i = 0, k = 0, n = counts.length(); i < n; i++)
+
+    if(mesh.GetNormalsInterpolation() == UsdGeomTokens->vertex)
+    { 
+      MIntArray vertexIds(normals.length());
+      for(uint32_t i = 0, n = normals.length(); i < n; ++i)
       {
-        for (uint32_t j = 0, m = counts[i]; j < m; j++, ++k)
+        vertexIds[i] = i;
+      }
+      return fnMesh.setFaceVertexNormals(normals, connects, connects, MSpace::kObject) == MS::kSuccess;
+    }
+    else
+    {
+      MIntArray normalsFaceIds;
+      normalsFaceIds.setLength(connects.length());
+      int32_t* normalsFaceIdsPtr = &normalsFaceIds[0];
+      if (normals.length() == uint32_t(fnMesh.numFaceVertices()))
+      {
+        for (uint32_t i = 0, k = 0, n = counts.length(); i < n; i++)
         {
-          normalsFaceIdsPtr[k] = i;
+          for (uint32_t j = 0, m = counts[i]; j < m; j++, ++k)
+          {
+            normalsFaceIdsPtr[k] = i;
+          }
         }
       }
-    }
 
-    return fnMesh.setFaceVertexNormals(normals, normalsFaceIds, connects, MSpace::kObject) == MS::kSuccess;
+      return fnMesh.setFaceVertexNormals(normals, normalsFaceIds, connects, MSpace::kObject) == MS::kSuccess;
+    }
   }
   return false;
 }
@@ -651,228 +652,6 @@ bool MeshImportContext::applyEdgeCreases()
     return true;
   }
   return false;
-}
-
-//----------------------------------------------------------------------------------------------------------------------
-void MeshImportContext::applyGlimpseSubdivParams()
-{
-  // TODO: ideally, this should be coming from the ALGlimpseMeshAPI
-  // and not be setting the attribute names directly
-  static const TfToken glimpse_gSubdiv("glimpse:subdiv:enabled");
-  static const TfToken glimpse_gSubdivKeepUvBoundary("glimpse:subdiv:keepUvBoundary");
-  static const TfToken glimpse_gSubdivLevel("glimpse:subdiv:level");
-  static const TfToken glimpse_gSubdivMode("glimpse:subdiv:mode");
-  static const TfToken glimpse_gSubdivPrimSizeMult("glimpse:subdiv:primSizeMult");
-  static const TfToken glimpse_gSubdivEdgeLengthMultiplier("glimpse:subdiv:edgeLengthMultiplier");
-
-  static const TfToken primvar_gSubdiv("isSubdiv");
-  static const TfToken primvar_gSubdivLevel("subdivLevel");
-
-  UsdPrim from = mesh.GetPrim();
-  UsdAttribute glimpse_gSubdiv_attr = from.GetAttribute(glimpse_gSubdiv);
-  UsdAttribute glimpse_gSubdivKeepUvBoundary_attr = from.GetAttribute(glimpse_gSubdivKeepUvBoundary);
-  UsdAttribute glimpse_gSubdivLevel_attr = from.GetAttribute(glimpse_gSubdivLevel);
-  UsdAttribute glimpse_gSubdivMode_attr = from.GetAttribute(glimpse_gSubdivMode);
-  UsdAttribute glimpse_gSubdivPrimSizeMult_attr = from.GetAttribute(glimpse_gSubdivPrimSizeMult);
-  UsdAttribute glimpse_gSubdivEdgeLengthMultiplier_attr = from.GetAttribute(glimpse_gSubdivEdgeLengthMultiplier);
-
-  // if the mesh is coming from alembic the glimpse subdivision
-  // attributes are stored as primvars
-  if (!glimpse_gSubdiv_attr && mesh.HasPrimvar(primvar_gSubdiv))
-  {
-    glimpse_gSubdiv_attr = mesh.GetPrimvar(primvar_gSubdiv);
-  }
-
-  if (!glimpse_gSubdivLevel_attr && mesh.HasPrimvar(primvar_gSubdivLevel))
-  {
-    glimpse_gSubdivLevel_attr = mesh.GetPrimvar(primvar_gSubdivLevel);
-  }
-
-  MStatus status;
-  if(glimpse_gSubdiv_attr)
-  {
-    MPlug plug = fnMesh.findPlug("gSubdiv", true, &status);
-    if(status)
-    {
-      bool value;
-      glimpse_gSubdiv_attr.Get(&value, m_timeCode);
-      plug.setBool(value);
-    }
-  }
-
-  if(glimpse_gSubdivKeepUvBoundary_attr)
-  {
-    MPlug plug = fnMesh.findPlug("gSubdivKeepUvBoundary", true, &status);
-    if(status)
-    {
-      bool value;
-      glimpse_gSubdivKeepUvBoundary_attr.Get(&value, m_timeCode);
-      plug.setBool(value);
-    }
-  }
-
-  if(glimpse_gSubdivLevel_attr)
-  {
-    MPlug plug = fnMesh.findPlug("gSubdivLevel", true, &status);
-    if(status)
-    {
-      int32_t value;
-      glimpse_gSubdivLevel_attr.Get(&value, m_timeCode);
-      plug.setInt(value);
-    }
-  }
-
-  if(glimpse_gSubdivMode_attr)
-  {
-    MPlug plug = fnMesh.findPlug("gSubdivMode", true, &status);
-    if(status)
-    {
-      int32_t value;
-      glimpse_gSubdivMode_attr.Get(&value, m_timeCode);
-      plug.setInt(value);
-    }
-  }
-
-  if(glimpse_gSubdivPrimSizeMult_attr)
-  {
-    MPlug plug = fnMesh.findPlug("gSubdivPrimSizeMult", true, &status);
-    if(status)
-    {
-      float value;
-      glimpse_gSubdivPrimSizeMult_attr.Get(&value, m_timeCode);
-      plug.setFloat(value);
-    }
-  }
-
-  if(glimpse_gSubdivEdgeLengthMultiplier_attr)
-  {
-    MPlug plug = fnMesh.findPlug("gSubdivEdgeLengthMultiplier", true, &status);
-    if(status)
-    {
-      float value;
-      glimpse_gSubdivEdgeLengthMultiplier_attr.Get(&value, m_timeCode);
-      plug.setFloat(value);
-    }
-  }
-}
-
-//----------------------------------------------------------------------------------------------------------------------
-void MeshImportContext::applyGlimpseUserDataParams()
-{
-  // TODO: glimpse user data can be set on any DAG node, push up to DagNodeTranslator?
-  // TODO: a schema, similar to that of primvars, should be used
-  static const std::string glimpse_namespace("glimpse:userData");
-
-  MStatus status;
-  MPlug plug = fnMesh.findPlug("gUserData", true, &status);
-  if(!status)
-  {
-    return;
-  }
-
-  auto applyUserData = [](MPlug& elemPlug, const std::string& name, int type, const std::string& value)
-  {
-    MPlug namePlug = elemPlug.child(0);
-    MPlug typePlug = elemPlug.child(1);
-    MPlug valuePlug = elemPlug.child(2);
-
-    namePlug.setValue(AL::maya::utils::convert(name));
-    typePlug.setValue(type);
-    valuePlug.setValue(AL::maya::utils::convert(value));
-  };
-
-  unsigned int logicalIndex = 0;
-  std::vector<UsdProperty> userDataProperties = mesh.GetPrim().GetPropertiesInNamespace(glimpse_namespace);
-  for(auto &userDataProperty : userDataProperties)
-  {
-    if (UsdAttribute attr = userDataProperty.As<UsdAttribute>())
-    {
-      SdfValueTypeName typeName = attr.GetTypeName();
-      if(typeName == SdfValueTypeNames->Int)
-      {
-        int value;
-        attr.Get(&value, m_timeCode);
-
-        MPlug elementPlug = plug.elementByLogicalIndex(logicalIndex++);
-        applyUserData(elementPlug, attr.GetBaseName().GetString(), GlimpseUserDataTypes::kInt, std::to_string(value));
-      }
-      else if(typeName == SdfValueTypeNames->Int2)
-      {
-        GfVec2i vec;
-        attr.Get(&vec, m_timeCode);
-
-        std::stringstream ss;
-        ss << vec[0] << ' ' << vec[1];
-
-        MPlug elementPlug = plug.elementByLogicalIndex(logicalIndex++);
-        applyUserData(elementPlug, attr.GetBaseName().GetString(), GlimpseUserDataTypes::kInt2, ss.str());
-      }
-      else if(typeName == SdfValueTypeNames->Int3)
-      {
-        GfVec3i vec;
-        attr.Get(&vec, m_timeCode);
-
-        std::stringstream ss;
-        ss << vec[0] << ' ' << vec[1] << ' ' << vec[2];
-
-        MPlug elementPlug = plug.elementByLogicalIndex(logicalIndex++);
-        applyUserData(elementPlug, attr.GetBaseName().GetString(), GlimpseUserDataTypes::kInt3, ss.str());
-      }
-      else if(typeName == SdfValueTypeNames->Float)
-      {
-        float value;
-        attr.Get(&value, m_timeCode);
-
-        MPlug elementPlug = plug.elementByLogicalIndex(logicalIndex++);
-        applyUserData(elementPlug, attr.GetBaseName().GetString(), GlimpseUserDataTypes::kFloat,
-                      std::to_string(value));
-      }
-      else if(typeName == SdfValueTypeNames->String)
-      {
-        std::string value;
-        attr.Get(&value, m_timeCode);
-
-        MPlug elementPlug = plug.elementByLogicalIndex(logicalIndex++);
-        applyUserData(elementPlug, attr.GetBaseName().GetString(), GlimpseUserDataTypes::kString, value);
-      }
-      else if(typeName == SdfValueTypeNames->Vector3f)
-      {
-        GfVec3f vec;
-        attr.Get(&vec, m_timeCode);
-
-        std::stringstream ss;
-        ss << vec[0] << ' ' << vec[1] << ' ' << vec[2];
-
-        MPlug elementPlug = plug.elementByLogicalIndex(logicalIndex++);
-        applyUserData(elementPlug, attr.GetBaseName().GetString(), GlimpseUserDataTypes::kVector, ss.str());
-      }
-      else if(typeName == SdfValueTypeNames->Color3f)
-      {
-        GfVec3f vec;
-        attr.Get(&vec, m_timeCode);
-
-        std::stringstream ss;
-        ss << vec[0] << ' ' << vec[1] << ' ' << vec[2];
-
-        MPlug elementPlug = plug.elementByLogicalIndex(logicalIndex++);
-        applyUserData(elementPlug, attr.GetBaseName().GetString(), GlimpseUserDataTypes::kColor, ss.str());
-      }
-      else if(typeName == SdfValueTypeNames->Matrix4d)
-      {
-        GfMatrix4d matrix;
-        attr.Get(&matrix, m_timeCode);
-
-        std::stringstream ss;
-        ss << matrix[0][0] << ' ' << matrix[0][1] << ' ' << matrix[0][2] << ' ';
-        ss << matrix[1][0] << ' ' << matrix[1][1] << ' ' << matrix[1][2] << ' ';
-        ss << matrix[2][0] << ' ' << matrix[2][1] << ' ' << matrix[2][2] << ' ';
-        ss << matrix[3][0] << ' ' << matrix[3][1] << ' ' << matrix[3][2];
-
-        MPlug elementPlug = plug.elementByLogicalIndex(logicalIndex++);
-        applyUserData(elementPlug, attr.GetBaseName().GetString(), GlimpseUserDataTypes::kMatrix, ss.str());
-      }
-    }
-  }
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -1879,72 +1658,6 @@ void MeshExportContext::copyInvisibleHoles()
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void MeshExportContext::copyGlimpseTesselationAttributes()
-{
-  // TODO: ideally this would be using the ALGlimpseSubdivAPI to create / set
-  // these attributes. However, it seems from the docs that getting / setting
-  // mesh attributes for custom data is a known issue
-  static const TfToken token_gSubdiv("glimpse:subdiv:enabled");
-  static const TfToken token_gSubdivMode("glimpse:subdiv:mode");
-  static const TfToken token_gSubdivLevel("glimpse:subdiv:level");
-  static const TfToken token_gSubdivPrimSizeMult("glimpse:subdiv:primSizeMult");
-  static const TfToken token_gSubdivKeepUvBoundary("glimpse:subdiv:keepUvBoundary");
-  static const TfToken token_gSubdivEdgeLengthMultiplier("glimpse:subdiv:edgeLengthMultiplier");
-
-  MStatus status;
-
-  UsdPrim prim = mesh.GetPrim();
-  MPlug plug = fnMesh.findPlug("gSubdiv", true, &status); // render as subdivision surfaces
-  if (status)
-  {
-    bool renderAsSubd = true;
-    plug.getValue(renderAsSubd);
-    prim.CreateAttribute(token_gSubdiv, SdfValueTypeNames->Bool).Set(renderAsSubd);
-  }
-
-  plug = fnMesh.findPlug("gSubdivMode", true, &status);
-  if (status)
-  {
-    int32_t subdMode = 0;
-    plug.getValue(subdMode);
-    prim.CreateAttribute(token_gSubdivMode, SdfValueTypeNames->Int).Set(subdMode);
-  }
-
-  plug = fnMesh.findPlug("gSubdivLevel", true, &status);
-  if (status)
-  {
-    int32_t subdLevel = -1;
-    plug.getValue(subdLevel);
-    subdLevel = std::max(subdLevel, -1);
-    prim.CreateAttribute(token_gSubdivLevel, SdfValueTypeNames->Int).Set(subdLevel);
-  }
-
-  plug = fnMesh.findPlug("gSubdivPrimSizeMult", true, &status);
-  if (status)
-  {
-    float subdivPrimSizeMult = 1.0f;
-    plug.getValue(subdivPrimSizeMult);
-    prim.CreateAttribute(token_gSubdivPrimSizeMult, SdfValueTypeNames->Float).Set(subdivPrimSizeMult);
-  }
-
-  plug = fnMesh.findPlug("gSubdivKeepUvBoundary", true, &status); // render as subdivision surfaces
-  if (status)
-  {
-    bool keepUvBoundary = true;
-    plug.getValue(keepUvBoundary);
-    prim.CreateAttribute(token_gSubdivKeepUvBoundary, SdfValueTypeNames->Bool, false).Set(keepUvBoundary);
-  }
-
-  plug = fnMesh.findPlug("gSubdivEdgeLengthMultiplier", true, &status);
-  if (status)
-  {
-    float subdEdgeLengthMult = 1.0f;
-    plug.getValue(subdEdgeLengthMult);
-    prim.CreateAttribute(token_gSubdivEdgeLengthMultiplier, SdfValueTypeNames->Float, false).Set(subdEdgeLengthMult);
-  }
-}
-
-//----------------------------------------------------------------------------------------------------------------------
 void MeshExportContext::copyCreaseVertices()
 {
   if(diffMesh & (kCornerSharpness | kCornerIndices))
@@ -2079,6 +1792,7 @@ void MeshExportContext::copyVertexData(UsdTimeCode time)
   }
 }
 
+//----------------------------------------------------------------------------------------------------------------------
 void MeshExportContext::copyBindPoseData(UsdTimeCode time)
 {
   if(diffGeom & kPoints)
@@ -2109,8 +1823,6 @@ void MeshExportContext::copyBindPoseData(UsdTimeCode time)
   }
 }
 
-
-
 //----------------------------------------------------------------------------------------------------------------------
 void MeshExportContext::copyNormalData(UsdTimeCode time)
 {
@@ -2123,6 +1835,9 @@ void MeshExportContext::copyNormalData(UsdTimeCode time)
       const float* normalsData = fnMesh.getRawNormals(&status);
       if(status && numNormals)
       {
+        MIntArray normalCounts, normalIndices;
+        fnMesh.getNormalIds(normalCounts, normalIndices);
+
         // if prim vars are all identical, we have a constant value
         if(usd::utils::vec3AreAllTheSame(normalsData, numNormals))
         {
@@ -2131,6 +1846,66 @@ void MeshExportContext::copyNormalData(UsdTimeCode time)
           normals[0][0] = normalsData[0];
           normals[0][1] = normalsData[1];
           normals[0][2] = normalsData[2];
+          normalsAttr.Set(normals, time);
+        }
+        else
+        if(numNormals != normalIndices.length())
+        {
+          if(usd::utils::compareArray(&normalIndices[0], &faceConnects[0], normalIndices.length(), faceConnects.length()))
+          {
+            VtArray<GfVec3f> normals(numNormals);
+            mesh.SetNormalsInterpolation(UsdGeomTokens->vertex);
+            memcpy((GfVec3f*)normals.data(), normalsData, sizeof(float) * 3 * numNormals);
+            normalsAttr.Set(normals, time);
+          }
+          else
+          {
+            std::unordered_map<uint32_t, uint32_t> missing;
+            bool isPerVertex = true;
+            for(uint32_t i = 0, n = normalIndices.length(); isPerVertex && i < n; ++i)
+            {
+              if(normalIndices[i] != faceConnects[i])
+              {
+                auto it = missing.find(normalIndices[i]);
+                if(it == missing.end())
+                {
+                  missing[normalIndices[i]] = faceConnects[i];
+                }
+                else
+                if(it->second != faceConnects[i])
+                {
+                  isPerVertex = false;
+                }
+              }
+            }
+
+            if(isPerVertex)
+            {
+              VtArray<GfVec3f> normals(numNormals);
+              memcpy((GfVec3f*)normals.data(), normalsData, sizeof(float) * 3 * numNormals);
+              for(auto& c : missing)
+              {
+                const uint32_t orig = c.first;
+                const uint32_t remapped = c.second;
+                const uint32_t index = 3 * orig;
+                const GfVec3f normal(normalsData[index], normalsData[index + 1], normalsData[index + 2]);
+                normals[remapped] = normal;
+              }
+              mesh.SetNormalsInterpolation(UsdGeomTokens->vertex);
+              normalsAttr.Set(normals, time);
+            }
+            else
+            {
+              VtArray<GfVec3f> normals(normalIndices.length());
+              for(uint32_t i = 0, n = normalIndices.length(); i < n; ++i)
+              {
+                const uint32_t index = 3 * normalIndices[i];
+                normals[i] = GfVec3f(normalsData[index], normalsData[index + 1], normalsData[index + 2]);
+              }        
+              mesh.SetNormalsInterpolation(UsdGeomTokens->faceVarying);
+              normalsAttr.Set(normals, time);  
+            }
+          }
         }
         else
         {
@@ -2144,172 +1919,6 @@ void MeshExportContext::copyNormalData(UsdTimeCode time)
       {
         MGlobal::displayError(MString("Unable to access mesh normals on mesh: ") + fnMesh.fullPathName());
       }
-    }
-  }
-}
-
-//----------------------------------------------------------------------------------------------------------------------
-void MeshExportContext::copyGlimpseUserDataAttributes()
-{
-  // TODO: glimpse user data can be set on any DAG node, push up to DagNodeTranslator?
-  static const std::string glimpse_namespace("glimpse:userData:");
-
-  MStatus status;
-  MPlug plug;
-
-  MString name;
-  int type = 0;
-  MString value;
-
-  UsdPrim prim = mesh.GetPrim();
-
-  auto allInts = [](const MStringArray& tokens) -> bool
-  {
-    auto length = tokens.length();
-    for(uint32_t i = 0; i < length; i++)
-    {
-      if (!tokens[i].isInt())
-      {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  auto allFloats = [](const MStringArray& tokens) -> bool
-  {
-    auto length = tokens.length();
-    for(uint32_t i = 0; i < length; i++)
-    {
-      if (!tokens[i].isFloat())
-      {
-        return false;
-      }
-    }
-
-    return true;
-  };
-
-  auto copyUserData = [&](const MString& name, int type, const MString& value)
-  {
-    std::stringstream ss;
-    ss << glimpse_namespace << name.asChar();
-
-    TfToken nameToken(ss.str());
-
-    MStringArray tokens;
-    value.split(' ', tokens);
-
-    switch(type)
-    {
-    case GlimpseUserDataTypes::kInt:
-      {
-        // int
-        prim.CreateAttribute(nameToken, SdfValueTypeNames->Int, false).Set(value.asInt(), m_timeCode);
-      }
-      break;
-      
-    case GlimpseUserDataTypes::kInt2:
-      {
-        // int2
-        if(tokens.length() == 2 && allInts(tokens))
-        {
-          GfVec2i vec(tokens[0].asInt(), tokens[1].asInt());
-          prim.CreateAttribute(nameToken, SdfValueTypeNames->Int2, false).Set(vec, m_timeCode);
-        }
-      }
-      break;
-      
-    case GlimpseUserDataTypes::kInt3:
-      {
-        // int3
-        if(tokens.length() == 3 && allInts(tokens))
-        {
-          GfVec3i vec(tokens[0].asInt(), tokens[1].asInt(), tokens[2].asInt());
-          prim.CreateAttribute(nameToken, SdfValueTypeNames->Int3, false).Set(vec, m_timeCode);
-        }
-      }
-      break;
-      
-    case GlimpseUserDataTypes::kFloat:
-      {
-        // float
-        prim.CreateAttribute(nameToken, SdfValueTypeNames->Float, false).Set(value.asFloat(), m_timeCode);
-      }
-      break;
-      
-    case GlimpseUserDataTypes::kVector:
-      {
-        // vector
-        if(tokens.length() == 3 && allFloats(tokens))
-        {
-          GfVec3f vec(tokens[0].asFloat(), tokens[1].asFloat(), tokens[2].asFloat());
-          prim.CreateAttribute(nameToken, SdfValueTypeNames->Vector3f, false).Set(vec, m_timeCode);
-        }
-      }
-      break;
-      
-    case GlimpseUserDataTypes::kColor:
-      {
-        // color
-        if(tokens.length() == 3 && allFloats(tokens))
-        {
-          GfVec3f vec(tokens[0].asFloat(), tokens[1].asFloat(), tokens[2].asFloat());
-          prim.CreateAttribute(nameToken, SdfValueTypeNames->Color3f, false).Set(vec, m_timeCode);
-        }
-      }
-      break;
-      
-    case GlimpseUserDataTypes::kString:
-      {
-        // string
-        prim.CreateAttribute(nameToken, SdfValueTypeNames->String, false).Set(AL::maya::utils::convert(value), m_timeCode);
-      }
-      break;
-      
-    case GlimpseUserDataTypes::kMatrix:
-      {
-        // matrix
-        // the value stored for this entry is a 4x3
-        if(tokens.length() == 12 && allFloats(tokens))
-        {
-          double components[4][4] =
-            {
-              {tokens[0].asDouble(), tokens[1].asDouble(), tokens[2].asDouble(),   0.0},
-              {tokens[3].asDouble(), tokens[4].asDouble(), tokens[5].asDouble(),   0.0},
-              {tokens[6].asDouble(), tokens[7].asDouble(), tokens[8].asDouble(),   0.0},
-              {tokens[9].asDouble(), tokens[10].asDouble(), tokens[11].asDouble(), 1.0}
-            };
-
-          // TODO: not sure why but SdfValueTypeNames does not have a defined type for Matrix4f only Matrix4d
-          GfMatrix4d matrix(components);
-          prim.CreateAttribute(nameToken, SdfValueTypeNames->Matrix4d, false).Set(matrix);
-        }
-      }
-      break;
-      
-    default:
-      // unsupported user data type
-      break;
-    }
-  };
-
-  plug = fnMesh.findPlug("gUserData", true);
-  if(status && plug.isCompound() && plug.isArray())
-  {
-    for(uint32_t i = 0; i < plug.numElements(); i++)
-    {
-      MPlug compoundPlug = plug[i];
-
-      MPlug namePlug = compoundPlug.child(0);
-      MPlug typePlug = compoundPlug.child(1);
-      MPlug valuePlug = compoundPlug.child(2);
-
-      namePlug.getValue(name);
-      typePlug.getValue(type);
-      valuePlug.getValue(value);
-
-      copyUserData(name, type, value);
     }
   }
 }

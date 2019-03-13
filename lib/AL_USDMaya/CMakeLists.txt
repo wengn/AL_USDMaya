@@ -35,10 +35,12 @@ list(APPEND AL_usdmaya_cmds_headers
         AL/usdmaya/cmds/DebugCommands.h
         AL/usdmaya/cmds/EventCommand.h
         AL/usdmaya/cmds/LayerCommands.h
+        AL/usdmaya/cmds/ListTranslators.h
         AL/usdmaya/cmds/ProxyShapeCommands.h
         AL/usdmaya/cmds/ProxyShapeSelectCommands.h
         AL/usdmaya/cmds/ProxyShapePostLoadProcess.h
         AL/usdmaya/cmds/RendererCommands.h
+        AL/usdmaya/cmds/SyncFileIOGui.h
         AL/usdmaya/cmds/UnloadPrim.h
 )
 list(APPEND AL_usdmaya_cmds_source
@@ -46,10 +48,12 @@ list(APPEND AL_usdmaya_cmds_source
         AL/usdmaya/cmds/DebugCommands.cpp
         AL/usdmaya/cmds/EventCommand.cpp
         AL/usdmaya/cmds/LayerCommands.cpp
+        AL/usdmaya/cmds/ListTranslators.cpp
         AL/usdmaya/cmds/ProxyShapeCommands.cpp
         AL/usdmaya/cmds/ProxyShapeSelectCommands.cpp
         AL/usdmaya/cmds/ProxyShapePostLoadProcess.cpp
         AL/usdmaya/cmds/RendererCommands.cpp
+        AL/usdmaya/cmds/SyncFileIOGui.cpp
         AL/usdmaya/cmds/UnloadPrim.cpp
 )
 
@@ -84,6 +88,8 @@ list(APPEND AL_usdmaya_fileio_translators_headers
         AL/usdmaya/fileio/translators/TranslatorContext.h
         AL/usdmaya/fileio/translators/TranslatorTestPlugin.h
         AL/usdmaya/fileio/translators/TranslatorTestType.h
+        AL/usdmaya/fileio/translators/ExtraDataPlugin.h
+        AL/usdmaya/fileio/translators/TestExtraDataPlugin.h
 )
 
 list(APPEND AL_usdmaya_fileio_translators_source
@@ -94,11 +100,16 @@ list(APPEND AL_usdmaya_fileio_translators_source
         AL/usdmaya/fileio/translators/TranslatorContext.cpp
         AL/usdmaya/fileio/translators/TranslatorTestPlugin.cpp
         AL/usdmaya/fileio/translators/TranslatorTestType.cpp
+        AL/usdmaya/fileio/translators/ExtraDataPlugin.cpp
+        AL/usdmaya/fileio/translators/TestExtraDataPlugin.cpp
 )
 
 list(APPEND AL_usdmaya_nodes_headers
+        AL/usdmaya/nodes/Engine.h
         AL/usdmaya/nodes/Layer.h
         AL/usdmaya/nodes/LayerManager.h
+        AL/usdmaya/nodes/MeshAnimCreator.h
+        AL/usdmaya/nodes/MeshAnimDeformer.h
         AL/usdmaya/nodes/ProxyDrawOverride.h
         AL/usdmaya/nodes/ProxyShape.h
         AL/usdmaya/nodes/ProxyShapeUI.h
@@ -106,13 +117,18 @@ list(APPEND AL_usdmaya_nodes_headers
         AL/usdmaya/nodes/Transform.h
         AL/usdmaya/nodes/TransformationMatrix.h
 )
+
 list(APPEND AL_usdmaya_nodes_proxy_headers
         AL/usdmaya/nodes/proxy/DrivenTransforms.h
         AL/usdmaya/nodes/proxy/PrimFilter.h
 )
+
 list(APPEND AL_usdmaya_nodes_source
+        AL/usdmaya/nodes/Engine.cpp
         AL/usdmaya/nodes/Layer.cpp
         AL/usdmaya/nodes/LayerManager.cpp
+        AL/usdmaya/nodes/MeshAnimCreator.cpp
+        AL/usdmaya/nodes/MeshAnimDeformer.cpp
         AL/usdmaya/nodes/ProxyDrawOverride.cpp
         AL/usdmaya/nodes/ProxyShape.cpp
         AL/usdmaya/nodes/ProxyShapeSelection.cpp
@@ -192,7 +208,6 @@ target_link_libraries(${LIBRARY_NAME}
     ${Boost_LINK_LIBRARIES}
     ${MAYA_Foundation_LIBRARY}
     ${MAYA_OpenMayaAnim_LIBRARY}
-    ${MAYA_OpenMayaFX_LIBRARY}
     ${MAYA_OpenMayaUI_LIBRARY}
     ${MAYA_OpenMaya_LIBRARY}
     ${MAYA_OpenMayaRender_LIBRARY}

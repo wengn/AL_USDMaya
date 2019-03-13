@@ -15,6 +15,7 @@
 //
 #include "AL/usdmaya/fileio/AnimationTranslator.h"
 #include "AL/usdmaya/fileio/Export.h"
+#include "AL/usdmaya/fileio/ExportTranslator.h"
 #include "AL/usdmaya/fileio/NodeFactory.h"
 #include "AL/usdmaya/fileio/translators/TransformTranslator.h"
 #include "AL/usdmaya/TransformOperation.h"
@@ -365,6 +366,24 @@ Export::Export(const ExporterParams& params)
     g_geomConstraint_targetAttr = ngc.attribute("tg");
   }
 
+  if(params.m_activateAllTranslators)
+  {
+    m_translatorManufacture.activateAll();
+  }
+  else
+  {
+    m_translatorManufacture.deactivateAll();
+  }
+
+  if(!params.m_activePluginTranslators.empty())
+  {
+    m_translatorManufacture.activate(params.m_activePluginTranslators);
+  }
+  if(!params.m_inactivePluginTranslators.empty())
+  {
+    m_translatorManufacture.deactivate(params.m_inactivePluginTranslators);
+  }
+
   if(m_impl->setStage(UsdStage::CreateNew(m_params.m_fileName.asChar())))
   {
     doExport();
@@ -558,10 +577,23 @@ void Export::exportIkChain(MDagPath effectorPath, const SdfPath& usdPath)
 //----------------------------------------------------------------------------------------------------------------------
 void Export::copyTransformParams(UsdPrim prim, MFnTransform& fnTransform)
 {
-  translators::TransformTranslator::copyAttributes(fnTransform.object(), prim, m_params);
+
+  translators::TransformTranslator::copyAttributes(fnTransform.object(), prim, m_params, fnTransform.dagPath());
   if(m_params.m_dynamicAttributes)
   {
     translators::DgNodeTranslator::copyDynamicAttributes(fnTransform.object(), prim);
+  }
+
+  // handle the special case of exporting 
+  {
+    auto dataPlugins = m_translatorManufacture.getExtraDataPlugins(fnTransform.object());
+    for(auto dataPlugin : dataPlugins)
+    {
+      if(dataPlugin->getFnType() == MFn::kTransform)
+      {
+        dataPlugin->exportObject(prim, fnTransform.object(), ExporterParams());
+      }
+    }
   }
 }
 
@@ -670,6 +702,12 @@ void Export::exportShapesCommonProc(MDagPath shapePath, MFnTransform& fnTransfor
     }
 
     transformPrim = translatorPtr->exportObject(m_impl->stage(), shapePath, shapeUsdPath, m_params);
+    auto dataPlugins = m_translatorManufacture.getExtraDataPlugins(shapePath.node());
+    for(auto dataPlugin : dataPlugins)
+    {
+      dataPlugin->exportObject(transformPrim, shapePath.node(), m_params);
+    }
+
     copyTransform = (refType == kNoReference);
   }
   else // no translator register for this Maya type
@@ -740,16 +778,42 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
   {
     this->exportShapesCommonProc(shapePath, fnTransform, usdPath, refType);
   };
-  std::function<void(MDagPath, MFnTransform&, SdfPath&)> exportTransformFunc =
-      [this] (MDagPath transformPath, MFnTransform& fnTransform, SdfPath& usdPath)
+
+  std::function<bool(MDagPath, MFnTransform&, SdfPath&, bool)> exportTransformFunc =
+      [this] (MDagPath transformPath, MFnTransform& fnTransform, SdfPath& usdPath, bool inWorldSpace)
   {
-    UsdGeomXform xform = UsdGeomXform::Define(m_impl->stage(), usdPath);
-    UsdPrim transformPrim = xform.GetPrim();
-    this->copyTransformParams(transformPrim, fnTransform);
+    SdfPath path;
+    if(inWorldSpace)
+    {
+      const std::string& pathName = usdPath.GetString();
+      size_t s = pathName.find_last_of('/');
+      path = SdfPath(pathName.data() + s);
+    }
+    else
+    {
+      path = usdPath;
+    }
+
+    bool exportKids = true;
+    translators::TranslatorManufacture::RefPtr translatorPtr = m_translatorManufacture.get(transformPath.node());
+    if (translatorPtr)
+    {
+      UsdPrim transformPrim = translatorPtr->exportObject(m_impl->stage(), transformPath, path, m_params);
+      this->copyTransformParams(transformPrim, fnTransform);
+      exportKids = translatorPtr->exportDescendants();
+     }
+    else
+    {
+
+      UsdGeomXform xform = UsdGeomXform::Define(m_impl->stage(), path);
+      UsdPrim transformPrim = xform.GetPrim();
+      this->copyTransformParams(transformPrim, fnTransform);
+    }
+    return exportKids;
   };
 
-  // choose right proc required by meshUV option
-  if (m_params.m_meshUV)
+  // choose right proc required by meshUV option;
+  if (m_params.getBool("Mesh UV Only"))
   {
     exportShapeProc =
         [this] (MDagPath shapePath, MFnTransform& fnTransform, SdfPath& usdPath, ReferenceType refType)
@@ -757,9 +821,13 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
       this->exportShapesOnlyUVProc(shapePath, fnTransform, usdPath);
     };
     exportTransformFunc =
-          [this] (MDagPath transformPath, MFnTransform& fnTransform, SdfPath& usdPath)
+          [this] (MDagPath transformPath, MFnTransform& fnTransform, SdfPath& usdPath, bool inWorldSpace)
     {
-      m_impl->stage()->OverridePrim(usdPath);
+      const std::string& pathName = usdPath.GetString();
+      size_t s = pathName.find_last_of('/');
+      SdfPath path(pathName.data() + s);
+      m_impl->stage()->OverridePrim(path);
+      return true;
     };
   }
 
@@ -796,7 +864,7 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
       }
 
       // for UV only exporting, record first prim as default
-      if (m_params.m_meshUV && defaultPrim.IsEmpty())
+      if (m_params.getBool("Mesh UV Only") && defaultPrim.IsEmpty())
       {
         defaultPrim = usdPath;
       }
@@ -815,11 +883,15 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
       uint32_t numShapes;
       transformPath.numberOfShapesDirectlyBelow(numShapes);
 
-      if(!m_params.m_mergeTransforms)
+      if(!m_params.m_mergeTransforms && !m_params.m_exportInWorldSpace)
       {
-        exportTransformFunc(transformPath, fnTransform, usdPath);
+        bool exportKids = exportTransformFunc(transformPath, fnTransform, usdPath, m_params.m_exportInWorldSpace);
         UsdPrim prim = m_impl->stage()->GetPrimAtPath(usdPath);
         prim.SetMetadata<TfToken>(AL::usdmaya::Metadata::mergedTransform, AL::usdmaya::Metadata::unmerged);
+        if (!exportKids)
+        {
+          it.prune();
+        }
       }
 
       if(numShapes)
@@ -876,7 +948,10 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
       {
         if(m_params.m_mergeTransforms)
         {
-          exportTransformFunc(transformPath, fnTransform, usdPath);
+          if (!exportTransformFunc(transformPath, fnTransform, usdPath, m_params.m_exportInWorldSpace))
+          {
+            it.prune();
+          }
         }
       }
     }
@@ -963,6 +1038,12 @@ ExportCommand::~ExportCommand()
 //----------------------------------------------------------------------------------------------------------------------
 MStatus ExportCommand::doIt(const MArgList& args)
 {
+  maya::utils::OptionsParser parser;
+  ExportTranslator::options().initParser(parser);
+  m_params.m_parser = &parser;
+  PluginTranslatorOptionsInstance pluginInstance(ExportTranslator::pluginContext());
+  parser.setPluginOptionsContext(&pluginInstance);
+  
   MStatus status;
   MArgDatabase argData(syntax(), args, &status);
   AL_MAYA_CHECK_ERROR(status, "ALUSDExport: failed to match arguments");
@@ -989,22 +1070,28 @@ MStatus ExportCommand::doIt(const MArgList& args)
   }
   if(argData.isFlagSet("m", &status))
   {
-    AL_MAYA_CHECK_ERROR(argData.getFlagArgument("m", 0, m_params.m_meshes), "ALUSDExport: Unable to fetch \"meshes\" argument");
+    bool option;
+    argData.getFlagArgument("m", 0, option);
+    m_params.setBool("Meshes", option);
   }
   if(argData.isFlagSet("uvs", &status))
   {
-    AL_MAYA_CHECK_ERROR(argData.getFlagArgument("uvs", 0, m_params.m_meshUvs), "ALUSDExport: Unable to fetch \"meshUVS\" argument");
+    bool option;
+    argData.getFlagArgument("uvs", 0, option);
+    m_params.setBool("Mesh UVs", option);
   }
   if(argData.isFlagSet("uvo", &status))
   {
-    AL_MAYA_CHECK_ERROR(argData.getFlagArgument("uvo", 0, m_params.m_meshUV), "ALUSDExport: Unable to fetch \"meshUVOnly\" argument");
+    bool option;
+    argData.getFlagArgument("uvo", 0, option);
+    m_params.setBool("Mesh UV Only", option);
   }
   if(argData.isFlagSet("pr", &status))
   {
-    AL_MAYA_CHECK_ERROR(argData.getFlagArgument("pr", 0, m_params.m_meshPointsAsPref), "ALUSDExport: Unable to fetch \"meshPointsPref\" argument");
+    bool option;
+    argData.getFlagArgument("pr", 0, option);
+    m_params.setBool("Mesh Points as PRef", option);
   }
-
-
 
   if(argData.isFlagSet("luv", &status))
   {
@@ -1016,7 +1103,9 @@ MStatus ExportCommand::doIt(const MArgList& args)
   }
   if(argData.isFlagSet("nc", &status))
   {
-    AL_MAYA_CHECK_ERROR(argData.getFlagArgument("nc", 0, m_params.m_nurbsCurves), "ALUSDExport: Unable to fetch \"nurbs curves\" argument");
+    bool option;
+    argData.getFlagArgument("nc", 0, option);
+    m_params.setBool("Nurbs Curves", option);
   }
 
   if(argData.isFlagSet("fr", &status))
@@ -1045,11 +1134,58 @@ MStatus ExportCommand::doIt(const MArgList& args)
   {
     AL_MAYA_CHECK_ERROR(argData.getFlagArgument("eac", 0, m_params.m_extensiveAnimationCheck), "ALUSDExport: Unable to fetch \"extensive animation check\" argument");
   }
-
+  if(argData.isFlagSet("ws", &status))
+  {
+    AL_MAYA_CHECK_ERROR(argData.getFlagArgument("ws", 0, m_params.m_exportInWorldSpace), "ALUSDExport: Unable to fetch \"world space\" argument");
+  }
+  if(argData.isFlagSet("opt", &status))
+  {
+    MString optionString;
+    AL_MAYA_CHECK_ERROR(argData.getFlagArgument("opt", 0, optionString), "ALUSDExport: Unable to fetch \"options\" argument");
+    parser.parse(optionString);
+  }
   if(m_params.m_animation)
   {
     m_params.m_animTranslator = new AnimationTranslator;
   }
+
+  m_params.m_activateAllTranslators = true;
+  bool eat = argData.isFlagSet("eat", &status);
+  bool dat = argData.isFlagSet("dat", &status);
+  if(eat && dat)
+  {
+    MGlobal::displayError("ALUSDExport: cannot enable all translators, AND disable all translators, at the same time");
+  }
+  else
+  if(dat) 
+  {
+    m_params.m_activateAllTranslators = false;
+  }
+
+  if(argData.isFlagSet("ept", &status))
+  {
+    MString arg;
+    AL_MAYA_CHECK_ERROR(argData.getFlagArgument("ept", 0, arg), "ALUSDExport: Unable to fetch \"enablePluginTranslators\" argument");
+    MStringArray strings;
+    arg.split(',', strings); 
+    for(uint32_t i = 0, n = strings.length(); i < n; ++i)
+    {
+      m_params.m_activePluginTranslators.emplace_back(strings[i].asChar());
+    }
+  }
+
+  if(argData.isFlagSet("dpt", &status))
+  {
+    MString arg;
+    AL_MAYA_CHECK_ERROR(argData.getFlagArgument("dpt", 0, arg), "ALUSDExport: Unable to fetch \"disablePluginTranslators\" argument");
+    MStringArray strings;
+    arg.split(',', strings); 
+    for(uint32_t i = 0, n = strings.length(); i < n; ++i)
+    {
+      m_params.m_inactivePluginTranslators.emplace_back(strings[i].asChar());
+    }
+  }
+
   return redoIt();
 }
 
@@ -1137,6 +1273,14 @@ MSyntax ExportCommand::createSyntax()
   AL_MAYA_CHECK_ERROR2(status, errorString);
   status = syntax.addFlag("-ss", "-subSamples", MSyntax::kUnsigned);
   AL_MAYA_CHECK_ERROR2(status, errorString);
+  status = syntax.addFlag("-ws", "-worldSpace", MSyntax::kBoolean);
+  AL_MAYA_CHECK_ERROR2(status, errorString);
+  status = syntax.addFlag("-opt", "-options", MSyntax::kString);
+  AL_MAYA_CHECK_ERROR2(status, errorString);
+  AL_MAYA_CHECK_ERROR2(syntax.addFlag("-eat", "-enableAllTranslators", MSyntax::kNoArg), errorString);
+  AL_MAYA_CHECK_ERROR2(syntax.addFlag("-dat", "-disableAllTranslators", MSyntax::kNoArg), errorString);
+  AL_MAYA_CHECK_ERROR2(syntax.addFlag("-ept", "-enablePluginTranslators", MSyntax::kString), errorString);
+  AL_MAYA_CHECK_ERROR2(syntax.addFlag("-dpt", "-disablePluginTranslators", MSyntax::kString), errorString);
   syntax.enableQuery(false);
   syntax.enableEdit(false);
 

@@ -13,7 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+#include <vector>
 #include "pxr/imaging/glf/glew.h"
+#include "AL/usdmaya/nodes/Engine.h"
 #include "AL/usdmaya/nodes/ProxyDrawOverride.h"
 #include "AL/usdmaya/nodes/ProxyShape.h"
 #include "AL/usdmaya/DebugCodes.h"
@@ -59,9 +61,9 @@ public:
   ~RenderUserData()
     {}
 
-  UsdImagingGLEngine::RenderParams m_params;
+  UsdImagingGLRenderParams m_params;
   UsdPrim m_rootPrim;
-  UsdImagingGLHdEngine* m_engine = 0;
+  Engine* m_engine = 0;
   ProxyShape* m_shape = 0;
   MDagPath m_objPath;
 };
@@ -148,7 +150,7 @@ MUserData* ProxyDrawOverride::prepareForDraw(
     data = newData = new RenderUserData;
   }
 
-  if(!shape->getRenderAttris(&data->m_params, frameContext, objPath))
+  if(!shape->getRenderAttris(data->m_params, frameContext, objPath))
   {
     delete newData;
     return nullptr;
@@ -399,8 +401,8 @@ void ProxyDrawOverride::draw(const MHWRender::MDrawContext& context, const MUser
     ptr->m_params.frame = ptr->m_shape->outTimePlug().asMTime().as(MTime::uiUnit());
     if(combined.size())
     {
-      UsdImagingGLEngine::RenderParams params = ptr->m_params;
-      params.drawMode = UsdImagingGLEngine::DRAW_WIREFRAME;
+      UsdImagingGLRenderParams params = ptr->m_params;
+      params.drawMode = UsdImagingGLDrawMode::DRAW_WIREFRAME;
       MColor colour = M3dView::leadColor();
       params.wireframeColor = GfVec4f(colour.r, colour.g, colour.b, 1.0f);
       glDepthFunc(GL_LEQUAL);
@@ -415,22 +417,29 @@ void ProxyDrawOverride::draw(const MHWRender::MDrawContext& context, const MUser
 		// Draw selection highlighting for all USD items in the UFE selection.
         SdfPathVector ufePaths;
         auto ufeSelList = Ufe::GlobalSelection::get();
+
+        Ufe::PathSegment proxyUfePath = ptr->m_shape->ufePathSegment();
         for (const auto& sceneItem : *ufeSelList)
         {
             if (sceneItem->runTimeId() == USD_UFE_RUNTIME_ID)
             {
                 const Ufe::Path& itemPath = sceneItem->path();
-                Ufe::PathSegment leaf = itemPath.getSegments().back();
-                if (leaf.runTimeId() == USD_UFE_RUNTIME_ID)
+                const Ufe::PathSegment& usdPathSegment = itemPath.getSegments().back();
+                if (usdPathSegment.runTimeId() == USD_UFE_RUNTIME_ID
+                    && itemPath.getSegments().size() == 2)
                 {
-                    ufePaths.emplace_back(leaf.string());
+                  const Ufe::PathSegment& mayaPathSegment = itemPath.getSegments().front();
+                  if(mayaPathSegment == proxyUfePath)
+                  {
+                    ufePaths.emplace_back(usdPathSegment.string());
+                  }
                 }
             }
         }
         if (!ufePaths.empty())
         {
-            UsdImagingGLEngine::RenderParams params = ptr->m_params;
-            params.drawMode = UsdImagingGLEngine::DRAW_WIREFRAME;
+            UsdImagingGLRenderParams params = ptr->m_params;
+            params.drawMode = UsdImagingGLDrawMode::DRAW_WIREFRAME;
             MColor colour = M3dView::leadColor();	// Maya selection color
             params.wireframeColor = GfVec4f(colour.r, colour.g, colour.b, 1.0f);
             glDepthFunc(GL_LEQUAL);
@@ -541,7 +550,7 @@ bool ProxyDrawOverride::userSelect(
   MMatrix invMatrix = objPath.inclusiveMatrixInverse();
   GfMatrix4d worldToLocalSpace(invMatrix.matrix);
 
-  UsdImagingGLEngine::RenderParams params;
+  UsdImagingGLRenderParams params;
 
   auto* proxyShape = static_cast<ProxyShape*>(getShape(objPath));
   auto engine = proxyShape->engine();
@@ -549,7 +558,7 @@ bool ProxyDrawOverride::userSelect(
 
   UsdPrim root = proxyShape->getUsdStage()->GetPseudoRoot();
 
-  UsdImagingGLEngine::HitBatch hitBatch;
+  Engine::HitBatch hitBatch;
   SdfPathVector rootPath;
   rootPath.push_back(root.GetPath());
 
@@ -571,9 +580,9 @@ bool ProxyDrawOverride::userSelect(
 
   auto selected = false;
 
-  auto getHitPath = [&engine] (UsdImagingGLEngine::HitBatch::const_reference& it) -> SdfPath
+  auto getHitPath = [&engine] (Engine::HitBatch::const_reference& it) -> SdfPath
   {
-    const UsdImagingGLEngine::HitInfo& hit = it.second;
+    const Engine::HitInfo& hit = it.second;
     auto path = engine->GetPrimPathFromInstanceIndex(it.first, hit.hitInstanceIndex);
     if (!path.IsEmpty())
     {
@@ -592,17 +601,16 @@ bool ProxyDrawOverride::userSelect(
     MStringArray nodes;
     MGlobal::executeCommand(command, nodes, false, true);
     
-    uint32_t i = 0;
-    for(auto it = hitBatch.begin(), e = hitBatch.end(); it != e; ++it, ++i)
+    for(const auto& it : hitBatch)
     {
-      auto path = getHitPath(*it).StripAllVariantSelections();
+      auto path = getHitPath(it).StripAllVariantSelections();
       auto obj = proxyShape->findRequiredPath(path);
       if (obj != MObject::kNullObj) 
       {
         MFnDagNode dagNode(obj);
         MDagPath dg;
         dagNode.getPath(dg);
-        const double* p = it->second.worldSpaceHitPoint.GetArray();
+        const double* p = it.second.worldSpaceHitPoint.GetArray();
         
         selectionList.add(dg);
         worldSpaceHitPts.append(MPoint(p[0], p[1], p[2]));
@@ -649,9 +657,9 @@ bool ProxyDrawOverride::userSelect(
       case MGlobal::kAddToHeadOfList: /* should never get here */ break;
       }
 
-      for(auto it = hitBatch.begin(), e = hitBatch.end(); it != e; ++it)
+      for(const auto& it : hitBatch)
       {
-        auto path = getHitPath(*it);
+        auto path = getHitPath(it);
         command += " -pp \"";
         command += path.GetText();
         command += "\"";
@@ -680,7 +688,7 @@ bool ProxyDrawOverride::userSelect(
     {
       paths.reserve(hitBatch.size());
 
-      auto addHit = [&engine, &paths, &getHitPath](UsdImagingGLEngine::HitBatch::const_reference& it)
+      auto addHit = [&engine, &paths, &getHitPath](Engine::HitBatch::const_reference& it)
       {
         paths.push_back(getHitPath(it));
       };
@@ -697,7 +705,7 @@ bool ProxyDrawOverride::userSelect(
           MDagPath cameraPath;
           M3dView::active3dView().getCamera(cameraPath);
           const auto cameraPoint = cameraPath.inclusiveMatrix() * MPoint(0.0, 0.0, 0.0, 1.0);
-          auto distanceToCameraSq = [&cameraPoint] (UsdImagingGLEngine::HitBatch::const_reference& it) -> double
+          auto distanceToCameraSq = [&cameraPoint] (Engine::HitBatch::const_reference& it) -> double
           {
             const auto dx = cameraPoint.x - it.second.worldSpaceHitPoint[0];
             const auto dy = cameraPoint.y - it.second.worldSpaceHitPoint[1];
@@ -742,7 +750,7 @@ bool ProxyDrawOverride::userSelect(
       {
         auto globalSelection = Ufe::GlobalSelection::get();
 
-        for (auto it : paths)
+        for (const auto& it : paths)
         {
           // Build a path segment of the USD picked object
           Ufe::PathSegment ps_usd(it.GetText(), 2, '/');
@@ -822,7 +830,7 @@ bool ProxyDrawOverride::userSelect(
         if(paths.size())
         {
           command = "AL_usdmaya_ProxyShapeSelect -i -a ";
-          for(auto it : paths)
+          for(const auto& it : paths)
           {
             command += " -pp \"";
             command += it.GetText();
@@ -847,7 +855,7 @@ bool ProxyDrawOverride::userSelect(
         if(!proxyShape->selectedPaths().empty() && paths.size())
         {
           MString command = "AL_usdmaya_ProxyShapeSelect -d ";
-          for(auto it : paths)
+          for(const auto& it : paths)
           {
             command += " -pp \"";
             command += it.GetText();
@@ -871,7 +879,7 @@ bool ProxyDrawOverride::userSelect(
 
         MString selectcommand = "AL_usdmaya_ProxyShapeSelect -i -a ";
         MString deselectcommand = "AL_usdmaya_ProxyShapeSelect -d ";
-        for(auto it : paths)
+        for(const auto& it : paths)
         {
           bool flag = false;
           for(auto sit : slpaths)

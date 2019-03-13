@@ -3,13 +3,11 @@ find_package(GTest REQUIRED)
 set(PXR_PACKAGE AL_USDMayaTestPlugin)
 
 list(APPEND AL_maya_test_headers
-    AL/UnitTestHarness.h
     test_usdmaya.h
 )
 
 list(APPEND AL_maya_test_source
         plugin.cpp
-		AL/UnitTestHarness.cpp
         AL/maya/test_DiffCore.cpp
         AL/maya/test_EventHandler.cpp
         AL/maya/test_MatrixToSRT.cpp
@@ -28,12 +26,14 @@ list(APPEND AL_maya_test_source
         AL/usdmaya/fileio/export_nonlinear.cpp
         AL/usdmaya/fileio/export_unmerged.cpp
         AL/usdmaya/fileio/export_multiple_shapes.cpp
+        AL/usdmaya/fileio/test_activeInActiveTranslators.cpp
         AL/usdmaya/nodes/test_ActiveInactive.cpp
         AL/usdmaya/nodes/test_LayerManager.cpp
         AL/usdmaya/nodes/test_ProxyShape.cpp
         AL/usdmaya/nodes/test_Transform.cpp
         AL/usdmaya/nodes/test_TransformMatrix.cpp
         AL/usdmaya/nodes/test_TranslatorContext.cpp
+        AL/usdmaya/nodes/test_ExtraDataPlugin.cpp
         AL/usdmaya/nodes/test_ProxyShapeSelectabilityDB.cpp
         AL/usdmaya/nodes/proxy/test_DrivenTransforms.cpp
         AL/usdmaya/nodes/proxy/test_PrimFilter.cpp
@@ -65,9 +65,9 @@ target_link_libraries(${PXR_PACKAGE}
     AL_USDMayaUtils
     AL_MayaUtils
     AL_USDUtils
-    AL_USDMaya
+    AL_USDMaya   #Adding this recursively pulls in lots of things
+    AL_MayaTest
     ${GTEST_LIBRARIES}
-    ${MAYA_LIBRARIES}
 )
 
 target_include_directories(${PXR_PACKAGE}
@@ -75,6 +75,7 @@ PRIVATE
     ${GTEST_INCLUDE_DIRS}
     ${MAYA_INCLUDE_DIRS}
     "../../lib/AL_USDMaya"    
+    ${MAYATEST_INCLUDE_LOCATION}
 )
 
 if(MSVC)

@@ -21,8 +21,8 @@
 #define stringify(a) #a
 
 #define AL_USDMAYA_VERSION_MAJOR 0
-#define AL_USDMAYA_VERSION_MINOR 29
-#define AL_USDMAYA_VERSION_PATCH 8
+#define AL_USDMAYA_VERSION_MINOR 32
+#define AL_USDMAYA_VERSION_PATCH 5
 
 #define AL_USDMAYA_VERSION_STR xstr(AL_USDMAYA_VERSION_MAJOR) "." \
                                xstr(AL_USDMAYA_VERSION_MINOR) "." \

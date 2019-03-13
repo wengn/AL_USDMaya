@@ -32,6 +32,7 @@
 #include "AL/maya/utils/NodeHelper.h"
 
 #include "NurbsCurve.h"
+#include "CommonTranslatorOptions.h"
 
 namespace AL {
 namespace usdmaya {
@@ -103,7 +104,7 @@ MStatus NurbsCurve::import(const UsdPrim& prim, MObject& parent, MObject& create
 UsdPrim NurbsCurve::exportObject(UsdStageRefPtr stage, MDagPath dagPath, const SdfPath& usdPath,
                                  const ExporterParams& params)
 {
-  if(!params.m_nurbsCurves)
+  if(!params.getBool(GeometryExportOptions::kNurbsCurves))
       return UsdPrim();
 
   TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("TranslatorContext::Starting to export Nurbs for path '%s'\n", usdPath.GetText());
@@ -111,6 +112,13 @@ UsdPrim NurbsCurve::exportObject(UsdStageRefPtr stage, MDagPath dagPath, const S
   UsdGeomNurbsCurves nurbs = UsdGeomNurbsCurves::Define(stage, usdPath);
   MFnNurbsCurve fnCurve(dagPath);
   writeEdits(nurbs, fnCurve, true);
+
+  // pick up any additional attributes attached to the curve node (these will be added alongside the transform attributes)
+  if(params.m_dynamicAttributes)
+  {
+    UsdPrim prim = nurbs.GetPrim();
+    DgNodeTranslator::copyDynamicAttributes(dagPath.node(), prim);
+  }
   return nurbs.GetPrim();
 }
 

@@ -16,6 +16,7 @@
 #include "maya/MTypes.h"
 
 #include "AL/usdmaya/DebugCodes.h"
+#include "AL/usdmaya/nodes/Engine.h"
 #include "AL/usdmaya/nodes/ProxyShape.h"
 #include "AL/usdmaya/nodes/ProxyShapeUI.h"
 #include "AL/usdmaya/nodes/ProxyDrawOverride.h"
@@ -109,7 +110,7 @@ void ProxyShapeUI::getDrawRequests(const MDrawInfo& drawInfo, bool isObjectAndAc
   MDrawRequest request = drawInfo.getPrototype(*this);
 
   ProxyShape* shape = static_cast<ProxyShape*>(surfaceShape());
-  UsdImagingGLHdEngine* engine = shape->engine();
+  Engine* engine = shape->engine();
   if(!engine)
   {
     shape->constructGLImagingEngine();
@@ -138,14 +139,14 @@ void ProxyShapeUI::draw(const MDrawRequest& request, M3dView& view) const
   glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
 
   ProxyShape* shape = static_cast<ProxyShape*>(surfaceShape());
-  UsdImagingGLHdEngine* engine = shape->engine();
+  Engine* engine = shape->engine();
   if(!engine)
   {
     return;
   }
 
   auto stage = shape->getUsdStage();
-  UsdImagingGLEngine::RenderParams params;
+  UsdImagingGLRenderParams params;
 
   params.showGuides = shape->displayGuidesPlug().asBool();
   params.showRender = shape->displayRenderGuidesPlug().asBool();
@@ -170,23 +171,23 @@ void ProxyShapeUI::draw(const MDrawRequest& request, M3dView& view) const
   switch(request.displayStyle())
   {
   case M3dView::kBoundingBox:
-    params.drawMode = UsdImagingGLEngine::DRAW_POINTS;
+    params.drawMode = UsdImagingGLDrawMode::DRAW_POINTS;
     break;
 
   case M3dView::kFlatShaded:
-    params.drawMode = UsdImagingGLEngine::DRAW_SHADED_FLAT;
+    params.drawMode = UsdImagingGLDrawMode::DRAW_SHADED_FLAT;
     break;
 
   case M3dView::kGouraudShaded:
-    params.drawMode = UsdImagingGLEngine::DRAW_SHADED_SMOOTH;
+    params.drawMode = UsdImagingGLDrawMode::DRAW_SHADED_SMOOTH;
     break;
 
   case M3dView::kWireFrame:
-    params.drawMode = UsdImagingGLEngine::DRAW_WIREFRAME;
+    params.drawMode = UsdImagingGLDrawMode::DRAW_WIREFRAME;
     break;
 
   case M3dView::kPoints:
-    params.drawMode = UsdImagingGLEngine::DRAW_POINTS;
+    params.drawMode = UsdImagingGLDrawMode::DRAW_POINTS;
     break;
   }
 
@@ -194,16 +195,16 @@ void ProxyShapeUI::draw(const MDrawRequest& request, M3dView& view) const
   {
     if(!request.displayCullOpposite())
     {
-      params.cullStyle = UsdImagingGLEngine::CULL_STYLE_BACK;
+      params.cullStyle = UsdImagingGLCullStyle::CULL_STYLE_BACK;
     }
     else
     {
-      params.cullStyle = UsdImagingGLEngine::CULL_STYLE_FRONT;
+      params.cullStyle = UsdImagingGLCullStyle::CULL_STYLE_FRONT;
     }
   }
   else
   {
-    params.cullStyle = UsdImagingGLEngine::CULL_STYLE_NOTHING;
+    params.cullStyle = UsdImagingGLCullStyle::CULL_STYLE_NOTHING;
   }
 
   #if !USE_GL_LIGHTING_STATE
@@ -275,7 +276,7 @@ void ProxyShapeUI::draw(const MDrawRequest& request, M3dView& view) const
   if(paths.size())
   {
     MColor colour = M3dView::leadColor();
-    params.drawMode = UsdImagingGLEngine::DRAW_WIREFRAME;
+    params.drawMode = UsdImagingGLDrawMode::DRAW_WIREFRAME;
     params.wireframeColor = GfVec4f(colour.r, colour.g, colour.b, 1.0f);
     glDepthFunc(GL_LEQUAL);
     engine->RenderBatch(paths, params);
@@ -329,7 +330,7 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
   MDagPath selectPath = selectInfo.selectPath();
   MMatrix invMatrix = selectPath.inclusiveMatrixInverse();
 
-  UsdImagingGLEngine::RenderParams params;
+  UsdImagingGLRenderParams params;
   MMatrix viewMatrix, projectionMatrix;
   GfMatrix4d worldToLocalSpace(invMatrix.matrix);
 
@@ -345,7 +346,7 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
 
   UsdPrim root = proxyShape->getUsdStage()->GetPseudoRoot();
 
-  UsdImagingGLEngine::HitBatch hitBatch;
+  Engine::HitBatch hitBatch;
   SdfPathVector rootPath;
   rootPath.push_back(root.GetPath());
 
@@ -366,61 +367,21 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
 
   auto selected = false;
 
-#if defined(WANT_UFE_BUILD)
-  auto pickUfePathPrim = [proxyShape](const SdfPath& path) -> SdfPath {
-    if (ArchHasEnv("MAYA_WANT_UFE_SELECTION")) {
-      // Get only Xform types for ufe selection
-      UsdPrim prim = proxyShape->getUsdStage()->GetPrimAtPath(path);
-      TfToken xformToken("Xform");
-      while (prim && prim.GetTypeName() != xformToken)
-        prim = prim.GetParent();
-      return prim.GetPath();
-    }
-    return path;
-  };
-#else
-  // Do nothing if WANT_UFE_BUILD is disabled
-  auto pickUfePathPrim = false;
-#endif
-
-  auto removeVariantFromPath = [&pickUfePathPrim] (const SdfPath& path) -> SdfPath
+  auto getHitPath = [&engine] (const Engine::HitBatch::const_reference& it) -> SdfPath
   {
-    std::string pathStr = path.GetText();
-    // I'm not entirely sure about this, but it would appear that the returned string here has the variant name
-    // tacked onto the end?
-    size_t dot_location = pathStr.find_last_of('.');
-    if(dot_location != std::string::npos)
-    {
-      pathStr = pathStr.substr(0, dot_location);
-    }
-    
-#if defined(WANT_UFE_BUILD)
-    SdfPath resultPath(pathStr);
-    return pickUfePathPrim(resultPath);
-#else
-    return SdfPath(pathStr);
-#endif
-  };
-
-  auto getHitPath = [&engine, &removeVariantFromPath, &pickUfePathPrim] (const UsdImagingGLEngine::HitBatch::const_reference& it) -> SdfPath
-  {
-    const UsdImagingGLEngine::HitInfo& hit = it.second;
+    const Engine::HitInfo& hit = it.second;
     auto path = engine->GetPrimPathFromInstanceIndex(it.first, hit.hitInstanceIndex);
     if (!path.IsEmpty())
     {
-#if defined(WANT_UFE_BUILD)
-      return pickUfePathPrim(path);
-#else
       return path;
-#endif
     }
-    return removeVariantFromPath(it.first);
+    return it.first.StripAllVariantSelections();
   };
 
 
   auto addSelection = [&hitBatch, &selectInfo, &selectionList,
       &worldSpaceSelectPoints, &objectsMask, &selected, proxyShape,
-      &removeVariantFromPath, &getHitPath] (const MString& command)
+      &getHitPath] (const MString& command)
   {
     selected = true;
     MStringArray nodes;
@@ -432,13 +393,12 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
     // That'll check if the mesh is still selected, and run an internal deselect command on that.
     // const auto singleSelection = selectInfo.singleSelection();
 
-    uint32_t i = 0;
-    for(auto it = hitBatch.begin(), e = hitBatch.end(); it != e; ++it, ++i)
+    for(const auto& it : hitBatch)
     {
 
       // Retarget hit path based on pick mode policy. The retargeted prim must
       // align with the path used in the 'AL_usdmaya_ProxyShapeSelect' command.
-      const SdfPath hitPath = removeVariantFromPath(getHitPath(*it));
+      const SdfPath hitPath = getHitPath(it).StripAllVariantSelections();
       const UsdPrim retargetedHitPrim = retargetSelectPrim(proxyShape->getUsdStage()->GetPrimAtPath(hitPath));
       const MObject obj = proxyShape->findRequiredPath(retargetedHitPrim.GetPath());
 
@@ -449,7 +409,7 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
         MDagPath dg;
         dagNode.getPath(dg);
         sl.add(dg);
-        const double* d = it->second.worldSpaceHitPoint.GetArray();
+        const double* d = it.second.worldSpaceHitPoint.GetArray();
         selectInfo.addSelection(sl, MPoint(d[0], d[1], d[2], 1.0), selectionList, worldSpaceSelectPoints, objectsMask, false);
       }
     }
@@ -489,9 +449,9 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
       case MGlobal::kAddToHeadOfList: /* should never get here */ break;
       }
 
-      for(auto it = hitBatch.begin(), e = hitBatch.end(); it != e; ++it)
+      for(const auto& it : hitBatch)
       {
-        auto path = getHitPath(*it);
+        auto path = getHitPath(it);
         command += " -pp \"";
         command += path.GetText();
         command += "\"";
@@ -536,7 +496,7 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
     {
       paths.reserve(hitBatch.size());
 
-      auto addHit = [&engine, &paths, &getHitPath](UsdImagingGLEngine::HitBatch::const_reference& it)
+      auto addHit = [&engine, &paths, &getHitPath](Engine::HitBatch::const_reference& it)
       {
         paths.push_back(getHitPath(it));
       };
@@ -553,7 +513,7 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
           MDagPath cameraPath;
           selectInfo.view().getCamera(cameraPath);
           const auto cameraPoint = cameraPath.inclusiveMatrix() * MPoint(0.0, 0.0, 0.0, 1.0);
-          auto distanceToCameraSq = [&cameraPoint] (UsdImagingGLEngine::HitBatch::const_reference& it) -> double
+          auto distanceToCameraSq = [&cameraPoint] (Engine::HitBatch::const_reference& it) -> double
           {
             const auto dx = cameraPoint.x - it.second.worldSpaceHitPoint[0];
             const auto dy = cameraPoint.y - it.second.worldSpaceHitPoint[1];
@@ -594,7 +554,7 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
                                      // Get the paths
         if (paths.size())
         {
-            for (auto it : paths)
+            for (const auto& it : paths)
             {
                 // Build a path segment of the USD picked object
                 Ufe::PathSegment ps_usd(it.GetText(), USD_UFE_RUNTIME_ID, USD_UFE_SEPARATOR);
@@ -698,7 +658,7 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
         if(paths.size())
         {
           command = "AL_usdmaya_ProxyShapeSelect -i -a ";
-          for(auto it : paths)
+          for(const auto& it : paths)
           {
             command += " -pp \"";
             command += it.GetText();
@@ -723,7 +683,7 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
         if(!proxyShape->selectedPaths().empty() && paths.size())
         {
           MString command = "AL_usdmaya_ProxyShapeSelect -d ";
-          for(auto it : paths)
+          for(const auto& it : paths)
           {
             command += " -pp \"";
             command += it.GetText();
@@ -746,7 +706,7 @@ bool ProxyShapeUI::select(MSelectInfo& selectInfo, MSelectionList& selectionList
 
         MString selectcommand = "AL_usdmaya_ProxyShapeSelect -i -a ";
         MString deselectcommand = "AL_usdmaya_ProxyShapeSelect -d ";
-        for(auto it : paths)
+        for(const auto& it : paths)
         {
           bool flag = false;
           for(auto sit : slpaths)

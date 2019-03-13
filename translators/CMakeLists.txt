@@ -1,4 +1,4 @@
-list(APPEND DEPENDANT_LIBRARIES AL_USDMaya ${SCHEMAS_PACKAGE} gf plug tf)
+list(APPEND DEPENDANT_LIBRARIES AL_USDMaya AL_USDMayaSchemas gf plug tf)
 
 set(DIRECTORY_PATH AL/usdmaya/fileio/translators)
 
@@ -12,10 +12,12 @@ configure_file (
 add_library(${TRANSLATORS_PACKAGE}
     SHARED
     Camera.cpp
+    CommonTranslatorOptions.cpp
     MayaReference.cpp
     Mesh.cpp
     NurbsCurve.cpp
     FrameRange.cpp
+    DirectionalLight.cpp
 )
 
 set(arg_PUBLIC_HEADER_FILES
