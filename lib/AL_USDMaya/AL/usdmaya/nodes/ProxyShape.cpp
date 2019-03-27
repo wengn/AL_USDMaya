@@ -71,6 +71,7 @@ typedef boost::filesystem::path path;
 #include "pxr/base/tf/fileUtils.h"
 #include "pxr/usd/ar/resolver.h"
 #include "pxr/usd/usd/stageCacheContext.h"
+#include "pxr/usd/usdGeom/pointInstancer.h"
 #include "pxr/usdImaging/usdImaging/primAdapter.h"
 #include "pxr/usdImaging/usdImaging/meshAdapter.h"
 #include "pxr/usd/usdUtils/stageCache.h"
@@ -313,6 +314,25 @@ void ProxyShape::translatePrimPathsIntoMaya(
     else
     {
       TF_DEBUG(ALUSDMAYA_EVALUATION).Msg("ProxyShape:translatePrimPathsIntoMaya Path for import '%s' resolves to an invalid prim\n", path.GetString().c_str());
+    }
+
+    //Naiqi's change
+    //If the prim is pointInstancer, the prototype meshes need to be imported as well.
+    if(prim && prim.GetTypeName().GetString() == std::string("PointInstancer"))
+    {
+      UsdGeomPointInstancer pointInstancer(prim);
+      if(pointInstancer)
+      {
+        SdfPathVector protoPaths;
+        if(pointInstancer.GetPrototypesRel().GetTargets(&protoPaths))
+        {
+          UsdStageConstPtr curStage = prim.GetStage();
+          for(auto it = protoPaths.begin(); it != protoPaths.end(); ++it)
+          {
+            importPrims.push_back(std::move(curStage->GetPrimAtPath(*it)));
+          }
+        }
+      }
     }
   }
 

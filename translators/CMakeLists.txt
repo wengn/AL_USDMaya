@@ -17,6 +17,7 @@ add_library(${TRANSLATORS_PACKAGE}
     NurbsCurve.cpp
     FrameRange.cpp
     DirectionalLight.cpp
+    Instancer.cpp
 )
 
 set(arg_PUBLIC_HEADER_FILES
@@ -80,7 +81,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "APPLE")
   )
 endif()
 
-target_link_libraries(${TRANSLATORS_PACKAGE} ${DEPENDANT_LIBRARIES})
+target_link_libraries(${TRANSLATORS_PACKAGE} ${DEPENDANT_LIBRARIES} ${MAYA_OpenMayaFX_LIBRARY}) #Naiqi's change
 
 install(TARGETS ${TRANSLATORS_PACKAGE}
  LIBRARY

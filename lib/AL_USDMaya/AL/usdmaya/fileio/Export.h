@@ -76,6 +76,7 @@ private:
   UsdPrim exportPluginShape(MDagPath path, const SdfPath& usdPath);
   void exportIkChain(MDagPath effectorPath, const SdfPath& usdPath);
   void exportGeometryConstraint(MDagPath effectorPath, const SdfPath& usdPath);
+  void exportGeomInstancer(MDagPath instancerPath, const SdfPath& usdPath);
   void copyTransformParams(UsdPrim prim, MFnTransform& fnTransform);
   SdfPath determineUsdPath(MDagPath path, const SdfPath& usdPath, ReferenceType refType);
   void addReferences(MDagPath shapePath, MFnTransform& fnTransform, SdfPath& usdPath,

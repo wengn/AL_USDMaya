@@ -585,6 +585,35 @@ SdfPath Export::determineUsdPath(MDagPath path, const SdfPath& usdPath, Referenc
   {
     case kNoReference:
     {
+      //Naiqi
+      //Need to handle special case of instancer prototype mesh node
+      MStatus status;
+      MFnDependencyNode nodeFn(path.transform(), &status);
+      MPlug matrixPlug = nodeFn.findPlug("matrix");
+      MPlugArray destArray;
+      matrixPlug.connectedTo(destArray, false, true, &status);
+      if(destArray.length() > 0)
+      {
+        MObject destObj = destArray[0].node(&status);
+        if(destObj.hasFn(MFn::kInstancer))
+        {
+          MFnDependencyNode instancerFn(destObj, &status);
+          std::string shapeDagPath(path.fullPathName().asChar());
+          std::string searchStr(instancerFn.name().asChar());
+          searchStr += "|Prototypes";
+          // Note: this is relying on how the instancer node was imported into Maya
+          // A transform node is added as a parent for the instancer shapde
+          // and all the prototype meshes
+          if(shapeDagPath.find(searchStr) != std::string::npos)
+          {
+            MFnDagNode instancerDagFn(destObj, &status);
+            std::string finalPath = std::string(instancerDagFn.fullPathName().asChar()) + "|Prototypes|";
+            finalPath += std::string(nodeFn.name(&status).asChar());
+            finalPath.resize(mayaDagPathToSdfPath(&finalPath[0], finalPath.size()));
+            return SdfPath(finalPath);
+          }
+        }
+      }
       return usdPath;
     }
     break;
@@ -745,6 +774,41 @@ void Export::exportShapesOnlyUVProc(MDagPath shapePath, MFnTransform& fnTransfor
 }
 
 //----------------------------------------------------------------------------------------------------------------------
+void Export::exportGeomInstancer(MDagPath instancerPath, const SdfPath& usdPath)
+{
+  MStatus status= MS::kFailure;
+  //Remove extra parent transform and parent the shapes under instancer prim
+  MFnDagNode dagFn(instancerPath, &status);
+
+  //Assuming this instancer node only have one parent, it doesn't have more than one transform node
+  MObject parentTransform = dagFn.parent(0, &status);
+
+  UsdPrim instancerPrim;
+  translators::TranslatorManufacture::RefPtr translatorPtr = m_translatorManufacture.get(instancerPath.node());
+  if (translatorPtr)
+  {
+    instancerPrim = translatorPtr->exportObject(m_impl->stage(), instancerPath, usdPath, m_params);
+    auto dataPlugins = m_translatorManufacture.getExtraDataPlugins(instancerPath.node());
+    for(auto dataPlugin : dataPlugins)
+    {
+      dataPlugin->exportObject(instancerPrim, instancerPath.node(), m_params);
+    }
+
+   //Need to unparent all the meshes and reparent it under this pointInstancer node when exporting
+
+  }
+
+
+  // Copy transformation information from parent tranform node to this instancer prim
+//  if (!instancerPrim)
+//  {
+//    MFnTransform transformFn(parentTransform, &status);
+//    copyTransformParams(instancerPrim, transformFn);
+//  }
+
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
 {
   MDagPath parentPath = rootPath;
@@ -799,7 +863,7 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
   MFnTransform fnTransform;
   // loop through transforms only
   while(!it.isDone())
-  {
+ {
     // assign transform function set
     MDagPath transformPath;
     it.getPath(transformPath);
@@ -842,6 +906,14 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
       if(transformPath.node().hasFn(MFn::kGeometryConstraint))
       {
         exportGeometryConstraint(transformPath, usdPath);
+      }
+
+      //Naiqi's change, special case for "instancer1" transform
+      if(transformPath.node().hasFn(MFn::kInstancer))
+      {
+        exportGeomInstancer(transformPath, usdPath);
+        it.next();
+        continue;
       }
 
       // how many shapes are directly under this transform path?
