@@ -321,16 +321,12 @@ void ProxyShape::translatePrimPathsIntoMaya(
     if(prim && prim.GetTypeName().GetString() == std::string("PointInstancer"))
     {
       UsdGeomPointInstancer pointInstancer(prim);
-      if(pointInstancer)
+      SdfPathVector protoPaths;
+      if(pointInstancer && pointInstancer.GetPrototypesRel().GetTargets(&protoPaths))
       {
-        SdfPathVector protoPaths;
-        if(pointInstancer.GetPrototypesRel().GetTargets(&protoPaths))
+        for(auto it = protoPaths.begin(); it != protoPaths.end(); ++it)
         {
-          UsdStageConstPtr curStage = prim.GetStage();
-          for(auto it = protoPaths.begin(); it != protoPaths.end(); ++it)
-          {
-            importPrims.push_back(std::move(curStage->GetPrimAtPath(*it)));
-          }
+          importPrims.push_back(std::move(prim.GetStage()->GetPrimAtPath(*it)));
         }
       }
     }

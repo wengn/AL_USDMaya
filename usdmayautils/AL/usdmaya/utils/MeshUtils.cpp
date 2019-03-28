@@ -1847,6 +1847,21 @@ void MeshExportContext::copyNormalData(UsdTimeCode time)
 }
 
 //----------------------------------------------------------------------------------------------------------------------
+void MeshExportContext::copyExtent()
+{
+  if(UsdAttribute pointsAttr = mesh.GetPointsAttr())
+  {
+    VtArray<GfVec3f> points;
+    pointsAttr.Get(&points);
+
+    VtArray<GfVec3f> extent(2);
+    // Compute the extent using the raw points
+    UsdGeomPointBased::ComputeExtent(points, &extent);
+    if(UsdAttribute extentAttr = mesh.CreateExtentAttr())
+      extentAttr.Set(extent);
+  }
+}
+//----------------------------------------------------------------------------------------------------------------------
 } // utils
 } // usdmaya
 } // AL

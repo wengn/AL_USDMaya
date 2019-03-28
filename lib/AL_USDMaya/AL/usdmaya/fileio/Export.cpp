@@ -776,13 +776,6 @@ void Export::exportShapesOnlyUVProc(MDagPath shapePath, MFnTransform& fnTransfor
 //----------------------------------------------------------------------------------------------------------------------
 void Export::exportGeomInstancer(MDagPath instancerPath, const SdfPath& usdPath)
 {
-  MStatus status= MS::kFailure;
-  //Remove extra parent transform and parent the shapes under instancer prim
-  MFnDagNode dagFn(instancerPath, &status);
-
-  //Assuming this instancer node only have one parent, it doesn't have more than one transform node
-  MObject parentTransform = dagFn.parent(0, &status);
-
   UsdPrim instancerPrim;
   translators::TranslatorManufacture::RefPtr translatorPtr = m_translatorManufacture.get(instancerPath.node());
   if (translatorPtr)
@@ -793,11 +786,7 @@ void Export::exportGeomInstancer(MDagPath instancerPath, const SdfPath& usdPath)
     {
       dataPlugin->exportObject(instancerPrim, instancerPath.node(), m_params);
     }
-
-   //Need to unparent all the meshes and reparent it under this pointInstancer node when exporting
-
   }
-
 
   // Copy transformation information from parent tranform node to this instancer prim
 //  if (!instancerPrim)

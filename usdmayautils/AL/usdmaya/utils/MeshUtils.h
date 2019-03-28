@@ -269,6 +269,11 @@ public:
   AL_USDMAYA_UTILS_PUBLIC
   void copyAnimalFaceColours();
 
+  // \brief copies the bounding box from maya into the usd prim
+  AL_USDMAYA_UTILS_PUBLIC
+  void copyExtent();
+
+
   /// \brief  returns the mesh function set
   MFnMesh& getFn()
     { return fnMesh; }

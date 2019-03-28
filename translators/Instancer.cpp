@@ -110,10 +110,12 @@ MStatus Instancer::import(const UsdPrim& prim, MObject& parent, MObject& createO
 
 
 //----------------------------------------------------------------------------------------------------------------------
-bool Instancer::setMayaInstancerArrayAttr(MFnArrayAttrsData& inputPointsData, const UsdAttribute& usdAttr, MString attrName, const std::string& type)
+void Instancer::setMayaInstancerArrayAttr(MFnArrayAttrsData& inputPointsData, const UsdAttribute& usdAttr, MString attrName)
 {
   MStatus status;
-  if(type == "point" || type == "vector")
+  std::string typeName = usdAttr.GetTypeName().GetAsToken().GetString();
+
+  if(typeName == "point3f[]" || typeName == "float3[]")
   {
     MVectorArray mayaVecArray = inputPointsData.vectorArray(attrName, &status);
     VtArray<GfVec3f> usdVecArray;
@@ -123,18 +125,17 @@ bool Instancer::setMayaInstancerArrayAttr(MFnArrayAttrsData& inputPointsData, co
           mayaVecArray, usdVecArray, [](GfVec3f v){ return MVector(v[0], v[1], v[2]); }
     );
   }
-  else if (type == "int32")
+  else if (typeName == "int[]")
   {
     MIntArray mayaIntArray = inputPointsData.intArray(attrName, &status);
     VtArray<int> usdIntArray;
     usdAttr.Get(&usdIntArray);
-    if(usdIntArray.size() == 0)
-      std::cout<<"Error getting usd array data"<<std::endl;
+
     _MapVtToMayaArrayValues<MIntArray, int, int>(
           mayaIntArray, usdIntArray, [](int x ){ return x; }
      );
   }
-  else if (type == "int64" ||type == "double")
+  else if (typeName == "int64[]" ||typeName == "double[]")
   {
     MDoubleArray mayaDoubleArray = inputPointsData.doubleArray(attrName, &status);
     VtArray<int64_t> usdIntArray;
@@ -143,7 +144,7 @@ bool Instancer::setMayaInstancerArrayAttr(MFnArrayAttrsData& inputPointsData, co
     _MapVtToMayaArrayValues<MDoubleArray, int64_t, double>(
           mayaDoubleArray, usdIntArray, [](int64_t x ){ return double(x); }
      );
-  }else if (type == "quat")
+  }else if (typeName == "quath[]")
   {
     MVectorArray mayaVecArray = inputPointsData.vectorArray(attrName, &status);
     VtArray<GfQuath> usdQuatArray;
@@ -163,7 +164,7 @@ bool Instancer::setMayaInstancerArrayAttr(MFnArrayAttrsData& inputPointsData, co
 
 
 //----------------------------------------------------------------------------------------------------------------------
-MStatus Instancer::updateMayaAttributes(MObject& mayaObj, const UsdPrim& prim)
+MStatus Instancer::updateMayaAttributes(MObject mayaObj, const UsdPrim& prim)
 {
   MStatus status = MS::kFailure;
 
@@ -172,19 +173,9 @@ MStatus Instancer::updateMayaAttributes(MObject& mayaObj, const UsdPrim& prim)
     return status;
   SdfPath instancerPath = prim.GetPrimPath();
 
-  MFnInstancer instFn(mayaObj, &status);
-  if(status == MS::kFailure)
-  {
-    MGlobal::displayError("Unable to create function set on instancer node");
-    return status;
-  }
-
   //Create a maya particle node into the Maya scene to record all data and connect it to this instance node
   MPlug instancePointDataPlug;
   bool particleResult = setupParticleNode(mayaObj, prim,instancePointDataPlug );
-
-  //Usually the instancer data comes from connection from a particle node, so setting the data directly on instancer node doesn't really making sense now
-
 
   MFnArrayAttrsData inputPointsData;
   MObject inputPointsObj = inputPointsData.create(&status);
@@ -196,7 +187,7 @@ MStatus Instancer::updateMayaAttributes(MObject& mayaObj, const UsdPrim& prim)
             instancerPath.GetText());
     return status;
   }
-  setMayaInstancerArrayAttr(inputPointsData, protoIdsAttr, MString("id"), std::string("int64"));
+  setMayaInstancerArrayAttr(inputPointsData, protoIdsAttr, MString("id"));
 
 
   UsdAttribute protoIndicesAttr = instancer.GetProtoIndicesAttr();
@@ -206,7 +197,7 @@ MStatus Instancer::updateMayaAttributes(MObject& mayaObj, const UsdPrim& prim)
             instancerPath.GetText());
     return status;
   }
- setMayaInstancerArrayAttr(inputPointsData, protoIndicesAttr, MString("objectIndex"), std::string("int32"));
+ setMayaInstancerArrayAttr(inputPointsData, protoIndicesAttr, MString("objectIndex"));
 
   UsdAttribute positionsAttr = instancer.GetPositionsAttr();
   if (!positionsAttr.HasValue()) {
@@ -214,7 +205,7 @@ MStatus Instancer::updateMayaAttributes(MObject& mayaObj, const UsdPrim& prim)
             "Not adding it to the render index.", instancerPath.GetText());
     return status;
   }
-  setMayaInstancerArrayAttr(inputPointsData, positionsAttr, MString("position"), std::string("point"));
+  setMayaInstancerArrayAttr(inputPointsData, positionsAttr, MString("position"));
 
   UsdAttribute orientationAttr = instancer.GetOrientationsAttr();
   if (!orientationAttr.HasValue()) {
@@ -222,7 +213,7 @@ MStatus Instancer::updateMayaAttributes(MObject& mayaObj, const UsdPrim& prim)
             "Not adding it to the render index.", instancerPath.GetText());
     return status;
   }
-  setMayaInstancerArrayAttr(inputPointsData, orientationAttr, MString("rotation"), std::string("quat"));
+  setMayaInstancerArrayAttr(inputPointsData, orientationAttr, MString("rotation"));
 
   UsdAttribute scaleAttr = instancer.GetScalesAttr();
   if (!scaleAttr.HasValue()) {
@@ -230,16 +221,15 @@ MStatus Instancer::updateMayaAttributes(MObject& mayaObj, const UsdPrim& prim)
             "Not adding it to the render index.", instancerPath.GetText());
     return status;
   }
- setMayaInstancerArrayAttr(inputPointsData, scaleAttr, MString("scale"), std::string("vector"));
+ setMayaInstancerArrayAttr(inputPointsData, scaleAttr, MString("scale"));
 
  status = instancePointDataPlug.setValue(inputPointsObj);
 
-
-  return status;
+ return status;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-bool Instancer::setupParticleNode(MObject& mayaObj, const UsdPrim& prim, MPlug& instPointDataPlug )
+bool Instancer::setupParticleNode(MObject mayaObj, const UsdPrim& prim, MPlug& instPointDataPlug )
 {
   MStatus status = MS::kFailure;
 
@@ -247,14 +237,14 @@ bool Instancer::setupParticleNode(MObject& mayaObj, const UsdPrim& prim, MPlug& 
   MObject parentObj = modifier.createNode("particle",MObject::kNullObj, &status);
   status = modifier.doIt();
 
-  if(parentObj.isNull())
-    return MS::kFailure;
+  if(parentObj.isNull() || status == MS::kFailure)
+    return false;
 
   MFnDagNode transformFn(parentObj, &status);
   MObject particleObj = transformFn.child(0, &status);
-  if(particleObj.isNull())
+  if(particleObj.isNull() || status == MS::kFailure)
   {
-    return MS::kFailure;
+    return false;
   }
 
   MFnParticleSystem particleFn(particleObj, &status);
@@ -263,8 +253,10 @@ bool Instancer::setupParticleNode(MObject& mayaObj, const UsdPrim& prim, MPlug& 
   CHECK_MSTATUS_AND_RETURN(status, false);
 
   if(instanceDataPlug.numChildren() != 2)
+  {
     MGlobal::displayError("InstanceData element plug does not have 2 child plugs\n");
-
+    return false;
+  }
   instPointDataPlug = instanceDataPlug.child(1,&status);
 
   MFnInstancer instancerFn(mayaObj, &status);
@@ -275,15 +267,11 @@ bool Instancer::setupParticleNode(MObject& mayaObj, const UsdPrim& prim, MPlug& 
   status = dgMod.connect(instPointDataPlug, destPlug);
   dgMod.doIt();
   CHECK_MSTATUS_AND_RETURN(status, false);
-
 }
 
 //----------------------------------------------------------------------------------------------------------------------
 MStatus Instancer::postImport(const UsdPrim& prim)
 {
-  //TODO: maybe should add a flag, only when the flag is set, the instancer is converted to maya instancer and correponding
-  //mesh needs to be converted too
-
   MStatus status = MS::kFailure;
   //Set up connection between "prototype" meshes and Maya instancer node
   UsdGeomPointInstancer pointInstancer(prim);
@@ -337,6 +325,12 @@ MStatus Instancer::postImport(const UsdPrim& prim)
             MDagModifier mod;
             mod.connect(matrixPlug, inputHierPlug.elementByLogicalIndex(it - protoPaths.begin()));
             status = mod.doIt();
+
+            // Hide the mesh transform
+            MPlug visibilityPlug(parentTransform, MFnTransform(parentTransform).attribute("visibility", &status));
+            if(visibilityPlug.asBool())
+              visibilityPlug.setBool(false);
+
           }
           else
             return MS::kFailure;
@@ -365,7 +359,6 @@ UsdPrim Instancer::exportObject(UsdStageRefPtr stage, MDagPath dagPath, const Sd
     return UsdPrim();
 
   return prim;
-
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -412,7 +405,6 @@ bool Instancer::updateUsdPrim(UsdStageRefPtr stage, const SdfPath& usdPath, cons
 
   MPlug inputPointsDest = dagNode.findPlug("inputPoints", true, &status);
   CHECK_MSTATUS_AND_RETURN(status, false);
-
   MPlugArray inputPointsSrc;
   inputPointsDest.connectedTo(inputPointsSrc, true, false, &status);
   if (inputPointsSrc.length() < 1)
@@ -438,7 +430,7 @@ bool Instancer::updateUsdPrim(UsdStageRefPtr stage, const SdfPath& usdPath, cons
        return false;
    }
 
-   // Load the completed point instancer to compute and set its extent.
+   // Load the completed point instancer to compute and set its extent.This is not computing correct value for the test case
    stage->Load(instancer.GetPath());
    VtArray<GfVec3f> extent(2);
    if (instancer.ComputeExtentAtTime(&extent, usdTime, usdTime)) {
@@ -462,8 +454,9 @@ bool _SetUSDInstancerAttr(const UsdAttribute& usdAttr, const T &value, const Usd
 bool Instancer::setUSDInstancerArrayAttribute(UsdStageRefPtr stage, MFnArrayAttrsData& inputPointsData, const SdfPath& usdPath,
     const size_t numPrototypes, UsdTimeCode usdTime)
 {
-  MStatus status;
+  MStatus status = MS::kFailure;
 
+  bool result = false;
   UsdUtilsSparseValueWriter valueWriter;
   UsdGeomPointInstancer instancer = UsdGeomPointInstancer::Define(stage, usdPath);
 
@@ -478,10 +471,9 @@ bool Instancer::setUSDInstancerArrayAttribute(UsdStageRefPtr stage, MFnArrayAttr
         ids, vtArray, [](double x) {  return (int64_t)x; }
     );
 
-    bool test = _SetUSDInstancerAttr(instancer.CreateIdsAttr(), vtArray, usdTime, &valueWriter);
-
-    if (!test)
-      return test;
+   result = _SetUSDInstancerAttr(instancer.CreateIdsAttr(), vtArray, usdTime, &valueWriter);
+   if (!result)
+      return result;
    }
 
   if(inputPointsData.checkArrayExist("objectIndex", type) && type == MFnArrayAttrsData::kIntArray)
@@ -494,10 +486,9 @@ bool Instancer::setUSDInstancerArrayAttribute(UsdStageRefPtr stage, MFnArrayAttr
         objectIndex, vtArray, [](int x) {  return x; }
     );
 
-    bool test2 = _SetUSDInstancerAttr(instancer.CreateProtoIndicesAttr(), vtArray, usdTime, &valueWriter);
-
-    if (!test2)
-      return test2;
+    result = _SetUSDInstancerAttr(instancer.CreateProtoIndicesAttr(), vtArray, usdTime, &valueWriter);
+    if (!result)
+      return result;
   }
 
   if(inputPointsData.checkArrayExist("position", type) && type == MFnArrayAttrsData::kVectorArray)
@@ -509,10 +500,9 @@ bool Instancer::setUSDInstancerArrayAttribute(UsdStageRefPtr stage, MFnArrayAttr
     _MapMayaToVtArrayValues<MVectorArray, GfVec3f, MVector>(
         position, vtArray, [](MVector v) {  return GfVec3f(v.x, v.y, v.z); });
 
-    bool test3 = _SetUSDInstancerAttr(instancer.CreatePositionsAttr(), vtArray, usdTime, &valueWriter);
-
-    if (!test3)
-      return test3;
+    result = _SetUSDInstancerAttr(instancer.CreatePositionsAttr(), vtArray, usdTime, &valueWriter);
+    if (!result)
+      return result;
   }
 
   if (inputPointsData.checkArrayExist("rotation", type) && type == MFnArrayAttrsData::kVectorArray)
@@ -533,10 +523,9 @@ bool Instancer::setUSDInstancerArrayAttribute(UsdStageRefPtr stage, MFnArrayAttr
       else return GfQuath(rot.GetQuat());
     });
 
-    bool test4 = _SetUSDInstancerAttr(instancer.CreateOrientationsAttr(), vtArray, usdTime, &valueWriter);
-
-    if (!test4)
-      return test4;
+    result = _SetUSDInstancerAttr(instancer.CreateOrientationsAttr(), vtArray, usdTime, &valueWriter);
+    if (!result)
+      return result;
   }
 
   if(inputPointsData.checkArrayExist("scale", type) && type == MFnArrayAttrsData::kVectorArray)
@@ -548,17 +537,36 @@ bool Instancer::setUSDInstancerArrayAttribute(UsdStageRefPtr stage, MFnArrayAttr
     _MapMayaToVtArrayValues<MVectorArray, GfVec3f, MVector>(
           scale, vtArray, [](MVector v){ return GfVec3f(v.x, v.y, v.z); });
 
-    bool test5 = _SetUSDInstancerAttr(instancer.CreateScalesAttr(), vtArray, usdTime, &valueWriter);
-    if (!test5)
-      return test5;
+    result = _SetUSDInstancerAttr(instancer.CreateScalesAttr(), vtArray, usdTime, &valueWriter);
+    if (!result)
+      return result;
   }
+
   return true;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
 MStatus Instancer::preTearDown(UsdPrim& prim)
 {
+  TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("InstancerTranslator::preTearDown prim=%s\n", prim.GetPath().GetText());
+  if(!prim.IsValid())
+  {
+    TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("InstancerTranslator::preTearDown prim invalid\n");
+    return MS::kFailure;
+  }
+  TranslatorBase::preTearDown(prim);
+
+  // Write the overrides back to the path it was imported at
   MStatus status = MS::kSuccess;
+  MObjectHandle handleToInstancer;
+  if(!context()->getMObject(prim, handleToInstancer, MFn::kInstancer))
+  {
+    MGlobal::displayError("unable to locate instancer node");
+    return MS::kFailure;
+  }
+
+  updateUsdPrim(prim.GetStage(), prim.GetPath(), handleToInstancer.object());
+
   return status;
 }
 
@@ -566,15 +574,31 @@ MStatus Instancer::preTearDown(UsdPrim& prim)
 //----------------------------------------------------------------------------------------------------------------------
 MStatus Instancer::tearDown(const SdfPath &path)
 {
-  MStatus status = MS::kSuccess;
-  return status;
+  MObjectHandle obj;
+  bool result = context()->getMObject(path, obj, MFn::kInstancer);
 
+  if (result)
+  {
+    context()->removeItems(path);
+    return MS::kSuccess;
+  }
+  else return MS::kFailure;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
 MStatus Instancer::update(const UsdPrim& prim)
 {
   MStatus status = MS::kSuccess;
+
+  MObjectHandle handleToInstancer;
+  if(context() && !context()->getMObject(prim, handleToInstancer, MFn::kInstancer))
+  {
+    MGlobal::displayError("unable to locate instancer node");
+    return MS::kFailure;
+  }
+
+  status = updateMayaAttributes(handleToInstancer.object(), prim);
+
   return status;
 }
 

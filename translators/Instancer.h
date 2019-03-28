@@ -40,13 +40,8 @@ public:
   MStatus import(const UsdPrim& prim, MObject& parent, MObject& createObj) override;
 
   MStatus postImport(const UsdPrim& prim) override;
-  MStatus updateMayaAttributes(MObject& mayaObj, const UsdPrim& prim);
-  bool setupParticleNode(MObject& mayaObj, const UsdPrim& prim, MPlug& instPointDataPlug );
   UsdPrim exportObject(UsdStageRefPtr stage, MDagPath dagPath, const SdfPath& usdPath,
                        const ExporterParams& params) override;
-  bool updateUsdPrim(UsdStageRefPtr stage, const SdfPath& usdPath, const MObject& obj);
-  bool setUSDInstancerArrayAttribute(UsdStageRefPtr stage,MFnArrayAttrsData& inputPointsData,
-                                     const SdfPath& usdPath, const size_t numPrototypes, UsdTimeCode usdTime);
   MStatus preTearDown(UsdPrim& prim) override;
   MStatus tearDown(const SdfPath &path) override;
   MStatus update(const UsdPrim& prim) override;
@@ -62,7 +57,12 @@ public:
     { return false; }
 
 private:
-  bool setMayaInstancerArrayAttr(MFnArrayAttrsData& inputPointsData, const UsdAttribute& usdAttr, MString attrName, const std::string& type);
+  void setMayaInstancerArrayAttr(MFnArrayAttrsData& inputPointsData, const UsdAttribute& usdAttr, MString attrName);
+  MStatus updateMayaAttributes(MObject mayaObj, const UsdPrim& prim);
+  bool setupParticleNode(MObject mayaObj, const UsdPrim& prim, MPlug& instPointDataPlug );
+  bool updateUsdPrim(UsdStageRefPtr stage, const SdfPath& usdPath, const MObject& obj);
+  bool setUSDInstancerArrayAttribute(UsdStageRefPtr stage,MFnArrayAttrsData& inputPointsData,
+                                     const SdfPath& usdPath, const size_t numPrototypes, UsdTimeCode usdTime);
 
 };
 

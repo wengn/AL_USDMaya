@@ -153,6 +153,12 @@ UsdPrim Mesh::exportObject(UsdStageRefPtr stage, MDagPath dagPath, const SdfPath
       context.copyBindPoseData(context.timeCode());
     }
 
+    //Naiqi's change, calculate extent and set it on prim
+    if(mesh.GetExtentAttr())
+    {
+      context.copyExtent();
+    }
+
     // pick up any additional attributes attached to the mesh node (these will be added alongside the transform attributes)
     if(params.m_dynamicAttributes)
     {
