@@ -774,7 +774,7 @@ void Export::exportShapesOnlyUVProc(MDagPath shapePath, MFnTransform& fnTransfor
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void Export::exportGeomInstancer(MDagPath instancerPath, const SdfPath& usdPath)
+void Export::exportGeomInstancer(MDagPath instancerPath, MFnTransform& fnTransform, const SdfPath& usdPath)
 {
   UsdPrim instancerPrim;
   translators::TranslatorManufacture::RefPtr translatorPtr = m_translatorManufacture.get(instancerPath.node());
@@ -789,11 +789,10 @@ void Export::exportGeomInstancer(MDagPath instancerPath, const SdfPath& usdPath)
   }
 
   // Copy transformation information from parent tranform node to this instancer prim
-//  if (!instancerPrim)
-//  {
-//    MFnTransform transformFn(parentTransform, &status);
-//    copyTransformParams(instancerPrim, transformFn);
-//  }
+  if (instancerPrim)
+  {
+    copyTransformParams(instancerPrim, fnTransform);
+  }
 
 }
 
@@ -852,7 +851,7 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
   MFnTransform fnTransform;
   // loop through transforms only
   while(!it.isDone())
- {
+  {
     // assign transform function set
     MDagPath transformPath;
     it.getPath(transformPath);
@@ -900,7 +899,7 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
       //Naiqi's change, special case for "instancer1" transform
       if(transformPath.node().hasFn(MFn::kInstancer))
       {
-        exportGeomInstancer(transformPath, usdPath);
+        exportGeomInstancer(transformPath, fnTransform, usdPath);
         it.next();
         continue;
       }

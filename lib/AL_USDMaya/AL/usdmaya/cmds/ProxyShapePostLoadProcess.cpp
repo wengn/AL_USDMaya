@@ -191,7 +191,6 @@ static bool parentNodeIsUnmerged(const UsdPrim & prim)
 {
   bool parentUnmerged = false;
   TfToken val;
-
   if(prim.GetParent().IsValid() && prim.GetParent().GetMetadata(AL::usdmaya::Metadata::mergedTransform, &val))
   {
     parentUnmerged = (val == AL::usdmaya::Metadata::unmerged);
