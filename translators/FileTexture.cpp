@@ -222,8 +222,10 @@ UsdPrim FileTexture::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPa
 
   UsdShadeShader uvTextureShader = UsdShadeShader::Define(stage, uvTexturePath);
   if (!uvTextureShader)
+  {
       TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("FileTexture Translator: UV texture node was not created successfully!");
-
+      return UsdPrim();
+  }
   uvTextureShader.CreateIdAttr(VtValue(UsdImagingTokens->UsdUVTexture));
 
   uvTextureShader.CreateInput(TfToken("file"), SdfValueTypeNames->Asset).Set(SdfAssetPath(textPath));  //Do not consider Mudbox or other mode
@@ -253,8 +255,8 @@ UsdPrim FileTexture::exportObject(UsdStageRefPtr stage, MObject obj, const SdfPa
 
   // Handle the place2dtexture node
   UsdPrim primvarReader = exportPlace2dTexture(stage, obj, usdPath, params);
-  uvInput.ConnectToSource(UsdShadeShader(primvarReader).GetOutput(TfToken("result")));
-
+  if(primvarReader)
+    uvInput.ConnectToSource(UsdShadeShader(primvarReader).GetOutput(TfToken("result")));
 
   return uvTextureShader.GetPrim();
 }
@@ -276,8 +278,10 @@ UsdPrim FileTexture::exportPlace2dTexture(UsdStageRefPtr stage, MObject obj, con
     SdfPath primvarReaderPath(usdPath.GetString() + "/" + place2dFn.name(&status).asChar());
     primvarReader = UsdShadeShader::Define(stage, primvarReaderPath);
     if (!primvarReader)
-        TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("FileTexture Translator: Primvar reader shader was not created successfully!");
-
+    {
+      TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("FileTexture Translator: Primvar reader shader was not created successfully!");
+      return UsdPrim();
+    }
     primvarReader.CreateIdAttr(VtValue(UsdImagingTokens->UsdPrimvarReader_float2));
     primvarReader.CreateInput(TfToken("varname"), SdfValueTypeNames->Token).Set(TfToken("st"));
     primvarReader.CreateInput(TfToken("fallback"), SdfValueTypeNames->Float2).Set(GfVec2f(0.0, 0.0));

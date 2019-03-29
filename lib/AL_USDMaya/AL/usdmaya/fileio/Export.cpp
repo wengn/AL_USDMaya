@@ -1104,12 +1104,12 @@ void Export::exportAIShader()
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void Export::exportSelectedAIShader()
+bool Export::exportSelectedAIShader()
 {
    if(m_params.m_selected == false || m_params.m_nodes.length() == 0)
    {
      TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportSelectedAIShader: You need to at lease select one shading engine node and set exporing selected flag to be true");
-     return;
+     return false;
    }
    MStatus status = MS::kSuccess;
 
@@ -1132,7 +1132,7 @@ void Export::exportSelectedAIShader()
      if(std::string(shaderEngineFn.typeName().asChar()).find("shadingEngine") == std::string::npos)
      {
        TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportSelectedAIShader: The selected shader does not have a connected shading engine node.");
-       return;
+       return false;
      }
 
      translators::TranslatorManufacture::RefPtr translatorPtr = m_translatorManufacture.get(shadingEngineNode);
@@ -1140,6 +1140,12 @@ void Export::exportSelectedAIShader()
      {
        SdfPath emptyPath;
        UsdPrim matPrim = translatorPtr->exportObject(m_impl->stage(), shadingEngineNode, emptyPath, m_params);
+       if(!matPrim)
+       {
+         TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportSelectedAIShader: Error exporting UsdPreviewSurface material.");
+         return false;
+       }
+
        UsdShadeMaterial usdMat(matPrim);
        if(!usdMat)
          TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportSelectedAIShader: UsdShadeMaterial is not created correctly.");
@@ -1178,6 +1184,11 @@ void Export::exportSelectedAIShader()
          {
            SdfPath parentPath = usdMat.GetPath();
            UsdPrim fileNodePrim = translatorFilePtr->exportObject(m_impl->stage(), (*itFile).object(), parentPath, m_params);
+           if( !fileNodePrim )
+           {
+             TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("ExportSelectedAIShader: Error exporting UsdUVTexture node");
+             continue;
+           }
 
            // Connect this uvTexture node to aiSurfaceShader node
            // Find out which attribute is connected to which on shader node
@@ -1342,7 +1353,10 @@ void Export::doExport()
     }
   }
 
-  exportSelectedAIShader();
+  if(!exportSelectedAIShader());
+  {
+    MGlobal::displayError("Error: Surface shader was not correctly exported to Usd shaders.");
+  }
 
   if(m_params.m_animTranslator)
   {
