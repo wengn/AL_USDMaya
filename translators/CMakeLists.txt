@@ -1,4 +1,5 @@
-list(APPEND DEPENDANT_LIBRARIES AL_USDMaya ${SCHEMAS_PACKAGE} gf plug tf usdImaging)
+list(APPEND DEPENDANT_LIBRARIES AL_USDMaya AL_USDMayaSchemas gf plug tf usdImaging)
+
 
 set(DIRECTORY_PATH AL/usdmaya/fileio/translators)
 
@@ -18,6 +19,7 @@ add_library(${TRANSLATORS_PACKAGE}
     FrameRange.cpp
     AIPreview.cpp
     FileTexture.cpp
+    DirectionalLight.cpp
 )
 
 set(arg_PUBLIC_HEADER_FILES
@@ -89,6 +91,9 @@ install(TARGETS ${TRANSLATORS_PACKAGE}
  RUNTIME
  DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
+if(MSVC)
+    install(FILES $<TARGET_PDB_FILE:${TRANSLATORS_PACKAGE}> DESTINATION ${CMAKE_INSTALL_PREFIX}/lib OPTIONAL)
+endif()
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/plugInfo.json
  DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/usd/${TRANSLATORS_PACKAGE}/resources
