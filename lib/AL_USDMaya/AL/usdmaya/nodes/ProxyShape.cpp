@@ -326,7 +326,7 @@ void ProxyShape::translatePrimPathsIntoMaya(
       {
         for(auto it = protoPaths.begin(); it != protoPaths.end(); ++it)
         {
-          importPrims.push_back(std::move(prim.GetStage()->GetPrimAtPath(*it)));
+          importPrims.push_back(prim.GetStage()->GetPrimAtPath(*it));
         }
       }
     }

@@ -21,9 +21,11 @@
 #include "pxr/base/vt/types.h"
 #include "pxr/base/gf/rotation.h"
 
+#include "AL/maya/utils/Utils.h"
 #include "AL/usdmaya/utils/DgNodeHelper.h"
 #include "AL/usdmaya/fileio/AnimationTranslator.h"
 #include "AL/usdmaya/fileio/translators/DgNodeTranslator.h"
+#include "AL/usdmaya/utils/AttributeType.h"
 
 #include "maya/MDagModifier.h"
 #include "maya/MDataHandle.h"
@@ -33,6 +35,7 @@
 #include "maya/MFnMesh.h"
 #include "maya/MFnParticleSystem.h"
 #include "maya/MFnTransform.h"
+#include "maya/MNodeClass.h"
 #include "maya/MPlugArray.h"
 #include "maya/MPointArray.h"
 
@@ -52,10 +55,16 @@ void _MapVtToMayaArrayValues(
     const VtArray<V>& vtArray,
     const std::function<M (const V)> mapper)
 {
+  const size_t size = vtArray.size();
   mArray.clear();
-  for (unsigned int i = 0; i < vtArray.size(); ++i)
+  mArray.setLength(size);
+  if(size)
   {
-    mArray.append(mapper(vtArray[i]));
+    auto input = vtArray.cdata();
+    for (size_t i = 0; i < size; ++i)
+    {
+       mArray[i] = mapper(input[i]);
+    }
   }
 }
 
@@ -65,11 +74,16 @@ void _MapMayaToVtArrayValues(
     VtArray<V>& vtArray,
     const std::function<V (const M)> mapper)
 {
+  unsigned int size = mArray.length();
   vtArray.clear();
-  vtArray.resize(mArray.length());
-  for (unsigned int i = 0; i < mArray.length(); ++i)
+  vtArray.resize(size);
+
+  if(size)
   {
-    vtArray[i] = mapper(mArray[i]);
+    for (unsigned int i = 0; i < size; ++i)
+    {
+      vtArray[i] = mapper(mArray[i]);
+    }
   }
 }
 
@@ -78,6 +92,21 @@ void _MapMayaToVtArrayValues(
 MStatus Instancer::initialize()
 {
   MStatus status = MS::kSuccess;
+  const char * const errorString = "InstancerTranslator: error retrieving maya instancer or particle attributes";
+
+  MNodeClass instancerNode("instancer");
+  m_inputPoints = instancerNode.attribute("inputPoints", &status);
+  m_inputHierarchy = instancerNode.attribute("inputHierarchy", &status);
+  MNodeClass particleNode("particle");
+  m_instanceData = particleNode.attribute("instanceData", &status);
+  AL_MAYA_CHECK_ERROR(status, errorString);
+
+  const char * const errorString2 = "InstancerTranslator: error retrieving maya transform attributes";
+  MNodeClass transformNode("transform");
+  m_matrix = transformNode.attribute("matrix", &status);
+  m_visibility = transformNode.attribute("visibility", &status);
+  AL_MAYA_CHECK_ERROR(status, errorString2);
+
   return status;
 }
 
@@ -91,13 +120,12 @@ MStatus Instancer::import(const UsdPrim& prim, MObject& parent, MObject& createO
 
   MFnDagNode fnDag;
   createObj = fnDag.create("instancer", parent, &status);
-  AL_MAYA_CHECK_ERROR2(status, MString("unable to create maya instancer node "));
+  AL_MAYA_CHECK_ERROR2(status, "unable to create maya instancer node ");
 
   MFnInstancer instFn(createObj, &status);
-  instFn.setName(MString(prim.GetName().GetText()), &status);
+  instFn.setName(AL::maya::utils::convert(prim.GetName().GetString()), &status);
 
   TranslatorContextPtr ctx = context();
-  UsdTimeCode timeCode = (ctx && ctx->getForceDefaultRead()) ? UsdTimeCode::Default() : UsdTimeCode::EarliestTime();
   if(ctx)
   {
     ctx->insertItem(prim, createObj);
@@ -113,43 +141,46 @@ MStatus Instancer::import(const UsdPrim& prim, MObject& parent, MObject& createO
 void Instancer::setMayaInstancerArrayAttr(MFnArrayAttrsData& inputPointsData, const UsdAttribute& usdAttr, MString attrName)
 {
   MStatus status;
-  std::string typeName = usdAttr.GetTypeName().GetAsToken().GetString();
 
-  if(typeName == "point3f[]" || typeName == "float3[]")
+  auto attrType = AL::usdmaya::utils::getAttributeType(usdAttr);
+  switch (attrType)
+  {
+  case AL::usdmaya::utils::UsdDataType::kVec3f:
   {
     MVectorArray mayaVecArray = inputPointsData.vectorArray(attrName, &status);
     VtArray<GfVec3f> usdVecArray;
     usdAttr.Get(&usdVecArray);
-
     _MapVtToMayaArrayValues<MVectorArray, GfVec3f, MVector>(
           mayaVecArray, usdVecArray, [](GfVec3f v){ return MVector(v[0], v[1], v[2]); }
     );
+    break;
   }
-  else if (typeName == "int[]")
+  case AL::usdmaya::utils::UsdDataType::kInt:
   {
     MIntArray mayaIntArray = inputPointsData.intArray(attrName, &status);
     VtArray<int> usdIntArray;
     usdAttr.Get(&usdIntArray);
-
     _MapVtToMayaArrayValues<MIntArray, int, int>(
           mayaIntArray, usdIntArray, [](int x ){ return x; }
      );
+    break;
   }
-  else if (typeName == "int64[]" ||typeName == "double[]")
+  case AL::usdmaya::utils::UsdDataType::kInt64:
+  case AL::usdmaya::utils::UsdDataType::kDouble:
   {
     MDoubleArray mayaDoubleArray = inputPointsData.doubleArray(attrName, &status);
     VtArray<int64_t> usdIntArray;
     usdAttr.Get(&usdIntArray);
-
     _MapVtToMayaArrayValues<MDoubleArray, int64_t, double>(
           mayaDoubleArray, usdIntArray, [](int64_t x ){ return double(x); }
      );
-  }else if (typeName == "quath[]")
+    break;
+  }
+  case AL::usdmaya::utils::UsdDataType::kQuath:
   {
     MVectorArray mayaVecArray = inputPointsData.vectorArray(attrName, &status);
     VtArray<GfQuath> usdQuatArray;
     usdAttr.Get(&usdQuatArray);
-
     _MapVtToMayaArrayValues<MVectorArray, GfQuath, MVector>(
           mayaVecArray, usdQuatArray, [](GfQuath quat)
     {
@@ -158,6 +189,8 @@ void Instancer::setMayaInstancerArrayAttr(MFnArrayAttrsData& inputPointsData, co
             GfVec3d::XAxis(), GfVec3d::YAxis(), GfVec3d::ZAxis());
       return MVector(result[0], result[1], result[2]);
     });
+    break;
+  }
   }
 
 }
@@ -175,8 +208,8 @@ MStatus Instancer::updateMayaAttributes(MObject mayaObj, const UsdPrim& prim)
 
   //Create a maya particle node into the Maya scene to record all data and connect it to this instance node
   MPlug instancePointDataPlug;
-  bool particleResult = setupParticleNode(mayaObj, prim,instancePointDataPlug );
-
+  if(!setupParticleNode(mayaObj, prim, instancePointDataPlug))
+    return status;
   MFnArrayAttrsData inputPointsData;
   MObject inputPointsObj = inputPointsData.create(&status);
 
@@ -234,21 +267,14 @@ bool Instancer::setupParticleNode(MObject mayaObj, const UsdPrim& prim, MPlug& i
   MStatus status = MS::kFailure;
 
   MDagModifier modifier;
-  MObject parentObj = modifier.createNode("particle",MObject::kNullObj, &status);
+  MObject transformObj = modifier.createNode("transform", MObject::kNullObj, &status);
+  MObject particleObj = modifier.createNode("particle", transformObj, &status);
   status = modifier.doIt();
+  CHECK_MSTATUS_AND_RETURN(status, false);
 
-  if(parentObj.isNull() || status == MS::kFailure)
+  MPlug instanceDataArrayPlug(particleObj, m_instanceData);
+  if(!instanceDataArrayPlug.numElements())
     return false;
-
-  MFnDagNode transformFn(parentObj, &status);
-  MObject particleObj = transformFn.child(0, &status);
-  if(particleObj.isNull() || status == MS::kFailure)
-  {
-    return false;
-  }
-
-  MFnParticleSystem particleFn(particleObj, &status);
-  MPlug instanceDataArrayPlug = particleFn.findPlug("instanceData");
   MPlug instanceDataPlug = instanceDataArrayPlug.elementByLogicalIndex(0, &status);
   CHECK_MSTATUS_AND_RETURN(status, false);
 
@@ -259,13 +285,9 @@ bool Instancer::setupParticleNode(MObject mayaObj, const UsdPrim& prim, MPlug& i
   }
   instPointDataPlug = instanceDataPlug.child(1,&status);
 
-  MFnInstancer instancerFn(mayaObj, &status);
-  MPlug destPlug = instancerFn.findPlug("inputPoints", &status);
-
-  //Connect it to instancer node
-  MDGModifier dgMod;
-  status = dgMod.connect(instPointDataPlug, destPlug);
-  dgMod.doIt();
+  MPlug destPlug(mayaObj, m_inputPoints);
+  status = modifier.connect(instPointDataPlug, destPlug);
+  modifier.doIt();
   CHECK_MSTATUS_AND_RETURN(status, false);
 }
 
@@ -302,6 +324,7 @@ MStatus Instancer::postImport(const UsdPrim& prim)
       }else
         inputHierPlug.setNumElements(protoPaths.size());
 
+      MDagModifier mod;
       for(auto it = protoPaths.begin(); it != protoPaths.end(); ++it)
       {
         //Find corresponding dag path MObject and set up the connection
@@ -321,10 +344,7 @@ MStatus Instancer::postImport(const UsdPrim& prim)
 
             MObject parentTransform = meshFn.parent(0);
             MPlug matrixPlug(parentTransform, MFnTransform(parentTransform).attribute("matrix", &status));
-
-            MDagModifier mod;
-            mod.connect(matrixPlug, inputHierPlug.elementByLogicalIndex(it - protoPaths.begin()));
-            status = mod.doIt();
+            mod.connect(matrixPlug, inputHierPlug.elementByLogicalIndex(it - protoPaths.begin()));           
 
             // Hide the mesh transform
             MPlug visibilityPlug(parentTransform, MFnTransform(parentTransform).attribute("visibility", &status));
@@ -334,8 +354,9 @@ MStatus Instancer::postImport(const UsdPrim& prim)
           }
           else
             return MS::kFailure;
-        }
+        } 
       }
+      return mod.doIt();
     }
   }
   return status;
@@ -367,11 +388,9 @@ bool Instancer::updateUsdPrim(UsdStageRefPtr stage, const SdfPath& usdPath, cons
   MStatus status;
 
   UsdGeomPointInstancer instancer = UsdGeomPointInstancer::Define(stage, usdPath);
-  MFnDagNode dagNode(obj,&status);
 
   //Setting up prototype prim
-  const MPlug inputHierarchy = dagNode.findPlug("inputHierarchy", true, &status);
-  CHECK_MSTATUS_AND_RETURN(status, false);
+  MPlug inputHierarchy(obj, m_inputHierarchy);
 
   // Note that the "Prototypes" prim needs to be a model group to ensure
   // contiguous model hierarchy.
@@ -403,13 +422,11 @@ bool Instancer::updateUsdPrim(UsdStageRefPtr stage, const SdfPath& usdPath, cons
     prototypesRel.AddTarget(prototypeUsdPath);
   }
 
-  MPlug inputPointsDest = dagNode.findPlug("inputPoints", true, &status);
-  CHECK_MSTATUS_AND_RETURN(status, false);
+  MPlug inputPointsDest(obj, m_inputPoints);
   MPlugArray inputPointsSrc;
-  inputPointsDest.connectedTo(inputPointsSrc, true, false, &status);
-  if (inputPointsSrc.length() < 1)
+  if (!inputPointsDest.connectedTo(inputPointsSrc, true, false, &status) || inputPointsSrc.length() < 1)
   {
-    TF_WARN("inputPoints not connected on instancer '%s'", dagNode.fullPathName().asChar());
+    TF_WARN("inputPoints not connected on instancer '%s'", MFnDagNode(obj).fullPathName().asChar());
     return false;
   }
 

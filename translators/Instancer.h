@@ -63,6 +63,11 @@ private:
   bool updateUsdPrim(UsdStageRefPtr stage, const SdfPath& usdPath, const MObject& obj);
   bool setUSDInstancerArrayAttribute(UsdStageRefPtr stage,MFnArrayAttrsData& inputPointsData,
                                      const SdfPath& usdPath, const size_t numPrototypes, UsdTimeCode usdTime);
+  static MObject m_inputPoints;
+  static MObject m_inputHierarchy;
+  static MObject m_instanceData;
+  static MObject m_matrix;
+  static MObject m_visibility;
 
 };
 
