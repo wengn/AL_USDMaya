@@ -59,7 +59,8 @@ public:
 private:
   void setMayaInstancerArrayAttr(MFnArrayAttrsData& inputPointsData, const UsdAttribute& usdAttr, MString attrName);
   MStatus updateMayaAttributes(MObject mayaObj, const UsdPrim& prim);
-  bool setupParticleNode(MObject mayaObj, const UsdPrim& prim, MPlug& instPointDataPlug );
+  bool setupParticleNode(MObject mayaObj, const UsdPrim& prim);
+  bool createParticleData(const UsdPrim& prim, MPlug& pointsDataPlug);
   bool updateUsdPrim(UsdStageRefPtr stage, const SdfPath& usdPath, const MObject& obj);
   bool setUSDInstancerArrayAttribute(UsdStageRefPtr stage,MFnArrayAttrsData& inputPointsData,
                                      const SdfPath& usdPath, const size_t numPrototypes, UsdTimeCode usdTime);

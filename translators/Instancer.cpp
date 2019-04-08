@@ -47,6 +47,11 @@ namespace translators {
 AL_USDMAYA_DEFINE_TRANSLATOR(Instancer, PXR_NS::UsdGeomPointInstancer)
 
 //----------------------------------------------------------------------------------------------------------------------
+MObject Instancer::m_inputPoints;
+MObject Instancer::m_inputHierarchy;
+MObject Instancer::m_instanceData;
+MObject Instancer::m_matrix;
+MObject Instancer::m_visibility;
 
 //----------------------------------------------------------------------------------------------------------------------
 template <typename MayaArrayType, typename V,  typename M>
@@ -199,70 +204,15 @@ void Instancer::setMayaInstancerArrayAttr(MFnArrayAttrsData& inputPointsData, co
 //----------------------------------------------------------------------------------------------------------------------
 MStatus Instancer::updateMayaAttributes(MObject mayaObj, const UsdPrim& prim)
 {
-  MStatus status = MS::kFailure;
-
-  UsdGeomPointInstancer instancer(prim);
-  if(!instancer)
-    return status;
-  SdfPath instancerPath = prim.GetPrimPath();
-
   //Create a maya particle node into the Maya scene to record all data and connect it to this instance node
-  MPlug instancePointDataPlug;
-  if(!setupParticleNode(mayaObj, prim, instancePointDataPlug))
-    return status;
-  MFnArrayAttrsData inputPointsData;
-  MObject inputPointsObj = inputPointsData.create(&status);
+  if(!setupParticleNode(mayaObj, prim))
+    return MS::kFailure;
 
-  UsdAttribute protoIdsAttr = instancer.GetIdsAttr();
-  if (!protoIdsAttr.HasValue()) {
-    TF_WARN("Point instancer %s does not have a 'Ids'"
-            "attribute. Not adding it to the render index.",
-            instancerPath.GetText());
-    return status;
-  }
-  setMayaInstancerArrayAttr(inputPointsData, protoIdsAttr, MString("id"));
-
-
-  UsdAttribute protoIndicesAttr = instancer.GetProtoIndicesAttr();
-  if (!protoIndicesAttr.HasValue()) {
-    TF_WARN("Point instancer %s does not have a 'protoIndices'"
-            "attribute. Not adding it to the render index.",
-            instancerPath.GetText());
-    return status;
-  }
- setMayaInstancerArrayAttr(inputPointsData, protoIndicesAttr, MString("objectIndex"));
-
-  UsdAttribute positionsAttr = instancer.GetPositionsAttr();
-  if (!positionsAttr.HasValue()) {
-    TF_WARN("Point instancer %s does not have a 'positions' attribute. "
-            "Not adding it to the render index.", instancerPath.GetText());
-    return status;
-  }
-  setMayaInstancerArrayAttr(inputPointsData, positionsAttr, MString("position"));
-
-  UsdAttribute orientationAttr = instancer.GetOrientationsAttr();
-  if (!orientationAttr.HasValue()) {
-    TF_WARN("Point instancer %s does not have a 'orientations' attribute. "
-            "Not adding it to the render index.", instancerPath.GetText());
-    return status;
-  }
-  setMayaInstancerArrayAttr(inputPointsData, orientationAttr, MString("rotation"));
-
-  UsdAttribute scaleAttr = instancer.GetScalesAttr();
-  if (!scaleAttr.HasValue()) {
-    TF_WARN("Point instancer %s does not have a 'scales' attribute. "
-            "Not adding it to the render index.", instancerPath.GetText());
-    return status;
-  }
- setMayaInstancerArrayAttr(inputPointsData, scaleAttr, MString("scale"));
-
- status = instancePointDataPlug.setValue(inputPointsObj);
-
- return status;
+ return MS::kSuccess;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-bool Instancer::setupParticleNode(MObject mayaObj, const UsdPrim& prim, MPlug& instPointDataPlug )
+bool Instancer::setupParticleNode(MObject mayaObj, const UsdPrim& prim )
 {
   MStatus status = MS::kFailure;
 
@@ -273,8 +223,6 @@ bool Instancer::setupParticleNode(MObject mayaObj, const UsdPrim& prim, MPlug& i
   CHECK_MSTATUS_AND_RETURN(status, false);
 
   MPlug instanceDataArrayPlug(particleObj, m_instanceData);
-  if(!instanceDataArrayPlug.numElements())
-    return false;
   MPlug instanceDataPlug = instanceDataArrayPlug.elementByLogicalIndex(0, &status);
   CHECK_MSTATUS_AND_RETURN(status, false);
 
@@ -283,12 +231,80 @@ bool Instancer::setupParticleNode(MObject mayaObj, const UsdPrim& prim, MPlug& i
     MGlobal::displayError("InstanceData element plug does not have 2 child plugs\n");
     return false;
   }
-  instPointDataPlug = instanceDataPlug.child(1,&status);
+  MPlug instPointDataPlug = instanceDataPlug.child(1,&status);
+  CHECK_MSTATUS_AND_RETURN(status, false);
+  if(!createParticleData(prim, instPointDataPlug))
+    return false;
 
   MPlug destPlug(mayaObj, m_inputPoints);
   status = modifier.connect(instPointDataPlug, destPlug);
-  modifier.doIt();
+  status = modifier.doIt();
   CHECK_MSTATUS_AND_RETURN(status, false);
+
+  return true;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+bool Instancer::createParticleData(const UsdPrim& prim, MPlug& pointsDataPlug)
+{
+  MStatus status = MS::kFailure;
+
+  UsdGeomPointInstancer instancer(prim);
+  if(!instancer)
+    return false;
+  SdfPath instancerPath = prim.GetPrimPath();
+
+  MFnArrayAttrsData inputPointsData;
+  MObject inputPointsObj = inputPointsData.create(&status);
+  CHECK_MSTATUS_AND_RETURN(status, false);
+
+  // Ids are optional on UsdGeomPointInstancer
+  UsdAttribute protoIdsAttr = instancer.GetIdsAttr();
+  if (!protoIdsAttr.HasValue()) {
+    TF_WARN("Point instancer %s does not have a 'Ids'"
+            "attribute. Not adding it to the render index.",
+            instancerPath.GetText());
+  }
+  else
+    setMayaInstancerArrayAttr(inputPointsData, protoIdsAttr, MString("id"));
+
+  UsdAttribute protoIndicesAttr = instancer.GetProtoIndicesAttr();
+  if (!protoIndicesAttr.HasValue()) {
+    TF_WARN("Point instancer %s does not have a 'protoIndices'"
+            "attribute. Not adding it to the render index.",
+            instancerPath.GetText());
+    return false;
+  }
+ setMayaInstancerArrayAttr(inputPointsData, protoIndicesAttr, MString("objectIndex"));
+
+  UsdAttribute positionsAttr = instancer.GetPositionsAttr();
+  if (!positionsAttr.HasValue()) {
+    TF_WARN("Point instancer %s does not have a 'positions' attribute. "
+            "Not adding it to the render index.", instancerPath.GetText());
+    return false;
+  }
+  setMayaInstancerArrayAttr(inputPointsData, positionsAttr, MString("position"));
+
+  UsdAttribute orientationAttr = instancer.GetOrientationsAttr();
+  if (!orientationAttr.HasValue()) {
+    TF_WARN("Point instancer %s does not have a 'orientations' attribute. "
+            "Not adding it to the render index.", instancerPath.GetText());
+    return false;
+  }
+  setMayaInstancerArrayAttr(inputPointsData, orientationAttr, MString("rotation"));
+
+  UsdAttribute scaleAttr = instancer.GetScalesAttr();
+  if (!scaleAttr.HasValue()) {
+    TF_WARN("Point instancer %s does not have a 'scales' attribute. "
+            "Not adding it to the render index.", instancerPath.GetText());
+    CHECK_MSTATUS_AND_RETURN(status, false);
+  }
+ setMayaInstancerArrayAttr(inputPointsData, scaleAttr, MString("scale"));
+
+ status = pointsDataPlug.setValue(inputPointsObj);
+ CHECK_MSTATUS_AND_RETURN(status, false);
+
+ return true;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
