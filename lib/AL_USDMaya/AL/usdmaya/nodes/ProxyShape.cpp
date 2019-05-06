@@ -318,7 +318,7 @@ void ProxyShape::translatePrimPathsIntoMaya(
 
     //Naiqi's change
     //If the prim is pointInstancer, the prototype meshes need to be imported as well.
-    if(prim && prim.GetTypeName().GetString() == std::string("PointInstancer"))
+/*    if(prim && prim.GetTypeName().GetString() == std::string("PointInstancer"))
     {
       UsdGeomPointInstancer pointInstancer(prim);
       SdfPathVector protoPaths;
@@ -330,7 +330,7 @@ void ProxyShape::translatePrimPathsIntoMaya(
         }
       }
     }
-  }
+*/  }
 
   translatePrimsIntoMaya(importPrims, teardownPaths, param);
 }

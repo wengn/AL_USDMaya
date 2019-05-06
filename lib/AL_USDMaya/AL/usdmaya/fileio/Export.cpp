@@ -597,20 +597,11 @@ SdfPath Export::determineUsdPath(MDagPath path, const SdfPath& usdPath, Referenc
         MObject destObj = destArray[0].node(&status);
         if(destObj.hasFn(MFn::kInstancer))
         {
-          MFnDependencyNode instancerFn(destObj, &status);
-          std::string shapeDagPath = AL::maya::utils::convert(path.fullPathName());
-          std::string searchStr = AL::maya::utils::convert(instancerFn.name()) + "|Prototypes";
-          // Note: this is relying on how the instancer node was imported into Maya
-          // A transform node is added as a parent for the instancer shapde
-          // and all the prototype meshes
-          if(shapeDagPath.find(searchStr) != std::string::npos)
-          {
-            MFnDagNode instancerDagFn(destObj, &status);
-            std::string finalPath = AL::maya::utils::convert(instancerDagFn.fullPathName()) + "|Prototypes|";
-            finalPath += AL::maya::utils::convert(nodeFn.name(&status));
-            finalPath.resize(mayaDagPathToSdfPath(&finalPath[0], finalPath.size()));
-            return SdfPath(finalPath);
-          }
+          MFnDagNode instancerDagFn(destObj, &status);
+          std::string finalPath = AL::maya::utils::convert(instancerDagFn.fullPathName()) + "|Prototypes|";
+          finalPath += AL::maya::utils::convert(nodeFn.name(&status));
+          finalPath.resize(mayaDagPathToSdfPath(&finalPath[0], finalPath.size()));
+          return SdfPath(finalPath);
         }
       }
       return usdPath;

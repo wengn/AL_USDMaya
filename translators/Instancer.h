@@ -48,8 +48,6 @@ public:
 
   bool supportsUpdate() const override
     { return true; }
-  bool importableByDefault() const override
-    { return false; }
   ExportFlag canExport(const MObject &obj) override
     { return obj.hasFn(MFn::kInstancer) ? ExportFlag::kFallbackSupport : ExportFlag::kNotSupported; }
 
