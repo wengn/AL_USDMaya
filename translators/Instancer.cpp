@@ -273,33 +273,33 @@ bool Instancer::createParticleData(const UsdPrim& prim, MPlug& pointsDataPlug)
     TF_WARN("Point instancer %s does not have a 'protoIndices'"
             "attribute. Not adding it to the render index.",
             instancerPath.GetText());
-    return false;
   }
- setMayaInstancerArrayAttr(inputPointsData, protoIndicesAttr, MString("objectIndex"));
+  else
+    setMayaInstancerArrayAttr(inputPointsData, protoIndicesAttr, MString("objectIndex"));
 
   UsdAttribute positionsAttr = instancer.GetPositionsAttr();
   if (!positionsAttr.HasValue()) {
     TF_WARN("Point instancer %s does not have a 'positions' attribute. "
             "Not adding it to the render index.", instancerPath.GetText());
-    return false;
   }
-  setMayaInstancerArrayAttr(inputPointsData, positionsAttr, MString("position"));
+  else
+    setMayaInstancerArrayAttr(inputPointsData, positionsAttr, MString("position"));
 
   UsdAttribute orientationAttr = instancer.GetOrientationsAttr();
   if (!orientationAttr.HasValue()) {
     TF_WARN("Point instancer %s does not have a 'orientations' attribute. "
             "Not adding it to the render index.", instancerPath.GetText());
-    return false;
   }
-  setMayaInstancerArrayAttr(inputPointsData, orientationAttr, MString("rotation"));
+  else
+    setMayaInstancerArrayAttr(inputPointsData, orientationAttr, MString("rotation"));
 
   UsdAttribute scaleAttr = instancer.GetScalesAttr();
   if (!scaleAttr.HasValue()) {
     TF_WARN("Point instancer %s does not have a 'scales' attribute. "
             "Not adding it to the render index.", instancerPath.GetText());
-    CHECK_MSTATUS_AND_RETURN(status, false);
   }
- setMayaInstancerArrayAttr(inputPointsData, scaleAttr, MString("scale"));
+  else
+    setMayaInstancerArrayAttr(inputPointsData, scaleAttr, MString("scale"));
 
  status = pointsDataPlug.setValue(inputPointsObj);
  CHECK_MSTATUS_AND_RETURN(status, false);
@@ -489,7 +489,7 @@ bool Instancer::setUSDInstancerArrayAttribute(UsdStageRefPtr stage, MFnArrayAttr
 {
   MStatus status = MS::kFailure;
 
-  bool result = false;
+  bool result = true;
   UsdUtilsSparseValueWriter valueWriter;
   UsdGeomPointInstancer instancer = UsdGeomPointInstancer::Define(stage, usdPath);
 
@@ -575,7 +575,7 @@ bool Instancer::setUSDInstancerArrayAttribute(UsdStageRefPtr stage, MFnArrayAttr
       return result;
   }
 
-  return true;
+  return result;
 }
 
 //----------------------------------------------------------------------------------------------------------------------

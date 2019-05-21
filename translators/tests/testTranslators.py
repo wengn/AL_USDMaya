@@ -2,6 +2,7 @@ import unittest
 import tempfile
 import maya.cmds as mc
 import maya.mel as mel
+import maya.OpenMaya as om
 
 from pxr import Tf, Usd, UsdGeom, Gf
 import translatortestutils
@@ -532,6 +533,59 @@ class TestTranslator(unittest.TestCase):
         
         self.assertEqual(startVisibleFrame, startVisibleFrameOld)
         self.assertEqual(endVisibleFrame, endVisibleFrameOld)
+    
+    def testInstancer_TranslatorExists(self):
+        """
+        Test that the Instancer Translator exists
+        """
+        self.assertTrue(Tf.Type.Unknown != Tf.Type.FindByName('AL::usdmaya::fileio::translators::Instancer'))
+
+    def testInstancer_PluginIsFunctional(self):
+        mc.AL_usdmaya_ImportCommand(file='./testInstancer.usda')
+        self.assertTrue(Tf.Type.Unknown != Tf.Type.FindByName('AL::usdmaya::fileio::translators::Instancer'))
+        instancerNode = mc.ls(type='instancer')
+        self.assertEqual(len(instancerNode), 1)
+        self.assertEqual(len(mc.listConnections(instancerNode +'.inputHierarchy', destination = True)), 7)
+
+    # This can be modified and combine with particle tests when particle translator is ready
+    def testInstancer_TranslateRoundTrip(self):
+        # setup scene with instancer
+        # Create instance in maya and export a .usda file
+        particleNode = mc.createNode('particle')
+        instanceNode = mc.createNode('instancer')
+        mc.emit(object=particleNode, position=((1,1,1),(2,2,2)))
+        protoSphere = mc.polySphere(r=1, sx=20, sy=20, ax=(0, 1, 0), cuv =2, ch=1)
+        protoCube = mc.polyCube(w=1, h=1, d=1, sx=1, sy=1, sz=1, ax=(0, 1, 0), cuv=4, ch=1)
+        protoCylinder = mc.polyCylinder(r=1, h=2, sx=20, sy=1, sz=1, ax=(0, 1, 0), rcp=0, cuv=3, ch=1)
+        mc.connectAttr(protoSphere[0] +'.matrix', instanceNode+'.inputHierarchy[0]')
+        mc.connectAttr(protoCube[0] +'.matrix', instanceNode+'.inputHierarchy[1]')
+        mc.connectAttr(protoCylinder[0] +'.matrix', instanceNode+'.inputHierarchy[2]')
+        mc.connectAttr(particleNode + '.instanceData[0].instancePointData', instanceNode+'.inputPoints')
+
+        tempFile = tempfile.NamedTemporaryFile(suffix=".usda", prefix="test_InstancerTranslator_", delete=True)
+        mc.select(instanceNode, replace = True)
+        mc.select(protoSphere, add= True)
+        mc.select(protoCube, add = True)
+        mc.select(protoCylinder, add = True)
+        mc.AL_usdmaya_ExportCommand(file=tempFile.name, selected = True)
+
+        # clear scene
+        mc.file(f=True, new=True)
+
+        # import file back
+        mc.AL_usdmaya_ImportCommand(file=tempFile.name)
+        self.assertEqual(len(mc.listConnections(instancerNode +'.inputHierarchy', destination = True)), 3)
+        # Note: need to use Maya python API 1.0 to retrieve instancer array attribute values
+        selList= om.MSelectionList()
+        depNode = om.MObject()
+        om.MGlobal.getSelectionListByName("instancer1|instancer1", selList)
+        selList.getDependNode(0, depNode)
+        inputAttr = om.MFnDependencyNode(depNode).attribute("inputPoints")
+        inputPlug = om.MPlug(depNode, inputAttr)
+        inputArrayData = om.MFnArrayAttrsData(inputPlug.asMObject())
+        positionArray = inputArrayData.getVectorData("position")
+        self.assertEqual(MVector(1.0, 1.0, 1.0), MVector(positionArray[0].x, positionArray[0].y, positionArray[0].z))
+        self.assertEqual(MVector(2.0, 2.0, 2.0), MVector(positionArray[1].x, positionArray[1].y, positionArray[1].z))
     
     # --------------------------------------------------------------------------------------------------    
     def _performDisablePrimTest(self, usdFilePath):

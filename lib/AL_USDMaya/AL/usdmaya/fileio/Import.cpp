@@ -150,6 +150,9 @@ void Import::doImport()
       m_nonImportablePrims.insert(TfToken("NurbsCurves"));
     }
 
+    //Naiqi's change
+    std::vector<UsdPrim> schemaPrims;
+
     for(TransformIterator it(stage, m_params.m_parentPath); !it.done(); it.next())
     {
       const UsdPrim& prim = it.prim();
@@ -187,6 +190,9 @@ void Import::doImport()
           {
             MFnTransform fnP(parent);
             fnP.addChild(shape, MFnTransform::kNextPos, true);
+
+            //Naiqi's change
+            schemaPrims.push_back(prim);
           }
         }
         AL_END_PROFILE_SECTION();
@@ -199,6 +205,10 @@ void Import::doImport()
         AL_END_PROFILE_SECTION();
       }
     }
+
+    // Naiqi's change
+    // After schema is imported, add postImport for schema prims
+    connectSchemaPrims(context, schemaPrims);
     m_success = true;
   }
   else
@@ -212,6 +222,42 @@ void Import::doImport()
   strstr << "Breakdown for file: " << m_params.m_fileName << std::endl;
   AL::usdmaya::Profiler::printReport(strstr);
   MGlobal::displayInfo(AL::maya::utils::convert(strstr.str()));
+}
+
+//-----------------------------------------------------------------------------------------------------------------------
+void Import::connectSchemaPrims(
+    translators::TranslatorContextPtr context,
+    const std::vector<UsdPrim>& createdPrims)
+{
+  TF_DEBUG(ALUSDMAYA_COMMANDS).Msg("ImportCommand: connectSchemaPrims\n");
+  AL_BEGIN_PROFILE_SECTION(PostImport);
+
+  translators::TranslatorManufacture manufacture(context);
+  // iterate over the prims we created, and call any post-import logic to make any attribute connections etc
+  auto it = createdPrims.begin();
+  const auto end = createdPrims.end();
+  for(; it != end; ++it)
+  {
+    UsdPrim prim = *it;
+    fileio::translators::TranslatorRefPtr torBase = manufacture.get(prim.GetTypeName());
+    if(torBase)
+    {
+      TF_DEBUG(ALUSDMAYA_COMMANDS).Msg("ImportCommand::connectSchemaPrims [postImport] prim=%s\n", prim.GetPath().GetText());
+      AL_BEGIN_PROFILE_SECTION(TranslatorBasePostImport);
+      torBase->postImport(prim);
+      std::vector<MObjectHandle> returned;
+      if(context->getMObjects(prim, returned) && !returned.empty())
+      {
+        auto dataPlugins = manufacture.getExtraDataPlugins(returned[0].object());
+        for(auto dataPlugin : dataPlugins)
+        {
+          dataPlugin->postImport(prim);
+        }
+      }
+      AL_END_PROFILE_SECTION();
+    }
+  }
+  AL_END_PROFILE_SECTION();
 }
 
 //----------------------------------------------------------------------------------------------------------------------

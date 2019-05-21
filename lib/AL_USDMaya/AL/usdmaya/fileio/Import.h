@@ -63,6 +63,10 @@ private:
     MObject parent, 
     bool parentUnmerged);
 
+  void connectSchemaPrims(
+      translators::TranslatorContextPtr context,
+      const std::vector<UsdPrim>& createdPrims);
+
   const ImporterParams& m_params;
   TfHashMap<SdfPath, MObject, SdfPath::Hash> m_instanceObjects;
   TfToken::HashSet m_nonImportablePrims;
