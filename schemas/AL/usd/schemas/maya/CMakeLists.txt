@@ -58,7 +58,6 @@ add_library(AL_USDMayaSchemas
     ModelAPI.cpp
     MayaReference.cpp
     FrameRange.cpp
-    PreviewSurface.cpp #naiqi's change
     tokens.cpp
     ModuleDeps.cpp
 )

@@ -25,7 +25,6 @@
 #include "pxr/usd/sdf/valueTypeName.h"
 #include "pxr/usd/usd/timeCode.h"
 
-#include "AL/usd/schemas/PreviewSurface.h"
 #include "AL/usdmaya/utils/DgNodeHelper.h"
 #include "AL/usdmaya/fileio/AnimationTranslator.h"
 #include "AL/usdmaya/fileio/translators/DgNodeTranslator.h"
