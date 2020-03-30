@@ -95,7 +95,8 @@ MStatus AIPreview::import(const UsdPrim& prim, MObject& parent, MObject& created
 
   MFnDependencyNode shaderFn;
   createdObj = shaderFn.create("aiStandardSurface", MString(shaderName.c_str()), &status);
-  status = updateMayaAttributes(createdObj, pbrShader);
+  if(pbrShader)
+      status = updateMayaAttributes(createdObj, pbrShader);
 
   TranslatorContextPtr ctx = context();
   if(ctx)
@@ -146,6 +147,9 @@ MStatus AIPreview::postImport(const UsdPrim& prim)
 
   UsdShadeMaterial mat(prim);
   UsdShadeShader pbrShader = mat.ComputeSurfaceSource();
+
+  if (!pbrShader)
+      return status;
 
   const std::vector<UsdProperty>& connectedProps = checkConnectedProps(prim);
   for(std::vector<UsdProperty>::const_iterator it = connectedProps.begin(); it != connectedProps.end(); ++it)
@@ -220,7 +224,8 @@ MStatus AIPreview::updateMayaAttributes(MObject to, UsdShadeShader& usdShader)
 
   auto diffuseAttr = usdShader.GetInput(TfToken("diffuseColor"));
   VtValue diffuse;
-  diffuseAttr.Get(&diffuse);
+  if(diffuseAttr)
+    diffuseAttr.Get(&diffuse);
   const GfVec3f rawVal = diffuse.Get<GfVec3f>();
   MObject baseColorObj = shaderFn.attribute("baseColor", &status);
   AL_MAYA_CHECK_ERROR(DgNodeTranslator::setVec3(to, baseColorObj, rawVal[0], rawVal[1], rawVal[2]), errorString);
@@ -229,7 +234,8 @@ MStatus AIPreview::updateMayaAttributes(MObject to, UsdShadeShader& usdShader)
 
   auto emissiveAttr = usdShader.GetInput(TfToken("emissiveColor"));
   VtValue emissive;
-  emissiveAttr.Get(&emissive);
+  if(emissiveAttr)
+      emissiveAttr.Get(&emissive);
   const GfVec3f emissiveVal = emissive.Get<GfVec3f>();
   MObject emissionColorObj = shaderFn.attribute("emissionColor", &status);
   AL_MAYA_CHECK_ERROR(DgNodeTranslator::setVec3(to, emissionColorObj, emissiveVal[0], emissiveVal[1], emissiveVal[2]), errorString);
@@ -242,7 +248,8 @@ MStatus AIPreview::updateMayaAttributes(MObject to, UsdShadeShader& usdShader)
   if(useSpecularWorkflow == 0)
   {
     auto metallicAttr = usdShader.GetInput(TfToken("metallic"));
-    metallicAttr.Get(&metalness);
+    if(metallicAttr)
+        metallicAttr.Get(&metalness);
     MObject metalnessObj = shaderFn.attribute("metalness", &status);
     AL_MAYA_CHECK_ERROR(DgNodeTranslator::setFloat(to, metalnessObj, metalness), errorString);
 
@@ -250,7 +257,8 @@ MStatus AIPreview::updateMayaAttributes(MObject to, UsdShadeShader& usdShader)
   {
     auto specularColorAttr = usdShader.GetInput(TfToken("specularColor"));
     VtValue specul;
-    specularColorAttr.Get(&specul);
+    if(specularColorAttr)
+        specularColorAttr.Get(&specul);
     const GfVec3f speculVal = specul.Get<GfVec3f>();
     MObject specularColorObj = shaderFn.attribute("specularColor", &status);
     AL_MAYA_CHECK_ERROR(DgNodeTranslator::setVec3(to, specularColorObj, speculVal[0], speculVal[1], speculVal[2]), errorString);
@@ -258,13 +266,15 @@ MStatus AIPreview::updateMayaAttributes(MObject to, UsdShadeShader& usdShader)
     AL_MAYA_CHECK_ERROR(DgNodeTranslator::setFloat(to, specularObj, 1.0), errorString);
 
     auto roughnessAttr = usdShader.GetInput(TfToken("roughness"));
-    roughnessAttr.Get(&specularRoughness);
+    if(roughnessAttr)
+        roughnessAttr.Get(&specularRoughness);
     MObject specularRoughnessObj = shaderFn.attribute("specularRoughness", &status);
     AL_MAYA_CHECK_ERROR(DgNodeTranslator::setFloat(to, specularRoughnessObj, specularRoughness), errorString);
   }
 
   auto clearcoatAttr = usdShader.GetInput(TfToken("clearcoat"));
-  clearcoatAttr.Get(&coat);
+  if(clearcoatAttr)
+    clearcoatAttr.Get(&coat);
   MObject coatObj = shaderFn.attribute("coat", &status);
   AL_MAYA_CHECK_ERROR(DgNodeTranslator::setFloat(to, coatObj, coat), errorString);
 
@@ -273,24 +283,28 @@ MStatus AIPreview::updateMayaAttributes(MObject to, UsdShadeShader& usdShader)
   AL_MAYA_CHECK_ERROR(DgNodeTranslator::setVec3(to, coatColorObj, coatColor), errorString);
 
   auto clearcoatRoughnessAttr = usdShader.GetInput(TfToken("clearcoatRoughness"));
-  clearcoatRoughnessAttr.Get(&coatRoughness);
+  if(clearcoatRoughnessAttr)
+      clearcoatRoughnessAttr.Get(&coatRoughness);
   MObject coatRoughnessObj = shaderFn.attribute("coatRoughness", &status);
   AL_MAYA_CHECK_ERROR(DgNodeTranslator::setFloat(to, coatRoughnessObj, coatRoughness), errorString);
 
   auto iorAttr = usdShader.GetInput(TfToken("ior"));
-  iorAttr.Get(&specularIOR);
+  if(iorAttr)
+      iorAttr.Get(&specularIOR);
   MObject iorObj = shaderFn.attribute("specularIOR", &status);
   AL_MAYA_CHECK_ERROR(DgNodeTranslator::setFloat(to, iorObj, specularIOR), errorString);
 
   // Didn't use transmission, directly map "opacity" over
   auto opacityAttr = usdShader.GetInput(TfToken("opacity"));
-  opacityAttr.Get(&opacity);
+  if(opacityAttr)
+      opacityAttr.Get(&opacity);
   MObject opacityObj = shaderFn.attribute("opacity", &status);
   AL_MAYA_CHECK_ERROR(DgNodeTranslator::setFloat(to, opacityObj, opacity), errorString);
 
   auto normalAttr = usdShader.GetInput(TfToken("normal"));
   VtValue norm;
-  normalAttr.Get(&norm);
+  if(normalAttr)
+      normalAttr.Get(&norm);
   const GfVec3f normalVal = norm.Get<GfVec3f>();
   MObject normalObj = shaderFn.attribute("normalCamera", &status);
   AL_MAYA_CHECK_ERROR(DgNodeTranslator::setVec3(to, normalObj, normalVal[0], normalVal[1], normalVal[2]), errorString);
