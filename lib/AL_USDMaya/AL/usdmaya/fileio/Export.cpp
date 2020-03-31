@@ -794,10 +794,21 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
     exportTransformFunc =
           [this] (MDagPath transformPath, MFnTransform& fnTransform, SdfPath& usdPath, bool inWorldSpace)
     {
-      const std::string& pathName = usdPath.GetString();
-      size_t s = pathName.find_last_of('/');
-      SdfPath path(pathName.data() + s);
-      m_impl->stage()->OverridePrim(path);
+       SdfPath path;
+       if(inWorldSpace)
+      {
+           const std::string& pathName = usdPath.GetString();
+           size_t s = pathName.find_last_of('/');
+           path = SdfPath(pathName.data() + s);
+       }
+       else
+       {
+           path = usdPath;
+       }
+
+      UsdPrim overPrim =  m_impl->stage()->OverridePrim(path);
+      if (!overPrim)
+          TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("Export::exportSceneHierarchy override prim is not valid with path %s\n", path.GetText());
     };
   }
 
@@ -857,7 +868,11 @@ void Export::exportSceneHierarchy(MDagPath rootPath, SdfPath& defaultPrim)
       {
         exportTransformFunc(transformPath, fnTransform, usdPath, m_params.m_exportInWorldSpace);
         UsdPrim prim = m_impl->stage()->GetPrimAtPath(usdPath);
-        prim.SetMetadata<TfToken>(AL::usdmaya::Metadata::mergedTransform, AL::usdmaya::Metadata::unmerged);
+
+        if (!prim)
+            TF_DEBUG(ALUSDMAYA_TRANSLATORS).Msg("Export::exportSceneHierarchy prim is not valid \n");
+        else
+            prim.SetMetadata<TfToken>(AL::usdmaya::Metadata::mergedTransform, AL::usdmaya::Metadata::unmerged);
       }
 
       if(numShapes)
