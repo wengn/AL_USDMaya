@@ -381,6 +381,9 @@ public:
   /// A place to put a custom assetResolver Config string that's passed to the Resolver Context when stage is opened
   AL_DECL_ATTRIBUTE(assetResolverConfig);
 
+  /// A place to put a custom assetResolver Config string that's passed to the Resolver Context when stage is opened
+  AL_DECL_ATTRIBUTE(usdVariantsLayer);
+
   //--------------------------------------------------------------------------------------------------------------------
   /// \name   Output Attributes
   //--------------------------------------------------------------------------------------------------------------------

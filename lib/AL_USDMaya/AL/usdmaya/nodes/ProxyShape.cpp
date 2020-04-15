@@ -238,7 +238,7 @@ MObject ProxyShape::m_transformScale = MObject::kNullObj;
 MObject ProxyShape::m_stageDataDirty = MObject::kNullObj;
 MObject ProxyShape::m_stageCacheId = MObject::kNullObj;
 MObject ProxyShape::m_assetResolverConfig = MObject::kNullObj;
-
+MObject ProxyShape::m_usdVariantsLayer = MObject::kNullObj;
 //----------------------------------------------------------------------------------------------------------------------
 std::vector<MObjectHandle> ProxyShape::m_unloadedProxyShapes;
 int m_stageCacheId;
@@ -772,6 +772,7 @@ MStatus ProxyShape::initialise()
     m_excludePrimPaths = addStringAttr("excludePrimPaths", "epp", kCached | kReadable | kWritable | kStorable | kAffectsAppearance);
     m_populationMaskIncludePaths = addStringAttr("populationMaskIncludePaths", "pmi", kCached | kReadable | kWritable | kStorable | kAffectsAppearance);
     m_excludedTranslatedGeometry = addStringAttr("excludedTranslatedGeometry", "etg", kCached | kReadable | kWritable | kStorable | kAffectsAppearance);
+    m_usdVariantsLayer = addStringAttr("usdVariantsLayer", "usdVariantsLayer", kCached | kReadable | kWritable | kStorable | kAffectsAppearance| kInternal | kHidden);
 
     m_complexity = addInt32Attr("complexity", "cplx", 0, kCached | kConnectable | kReadable | kWritable | kAffectsAppearance | kKeyable | kStorable);
     setMinMax(m_complexity, 0, 8, 0, 4);
@@ -814,7 +815,7 @@ MStatus ProxyShape::initialise()
 
     m_stageCacheId = addInt32Attr("stageCacheId", "stcid", -1, kCached | kConnectable | kReadable  );
 
-    m_assetResolverConfig = addStringAttr("assetResolverConfig", "arc", kReadable | kWritable | kConnectable | kStorable | kAffectsAppearance);
+    m_assetResolverConfig = addStringAttr("assetResolverConfig", "arc", kReadable | kWritable | kHidden | kStorable | kAffectsAppearance);
 
     AL_MAYA_CHECK_ERROR(attributeAffects(m_time, m_outTime), errorString);
     AL_MAYA_CHECK_ERROR(attributeAffects(m_timeOffset, m_outTime), errorString);
@@ -823,6 +824,7 @@ MStatus ProxyShape::initialise()
     AL_MAYA_CHECK_ERROR(attributeAffects(m_primPath, m_outStageData), errorString);
     AL_MAYA_CHECK_ERROR(attributeAffects(m_inDrivenTransformsData, m_outStageData), errorString);
     AL_MAYA_CHECK_ERROR(attributeAffects(m_populationMaskIncludePaths, m_outStageData), errorString);
+    AL_MAYA_CHECK_ERROR(attributeAffects(m_usdVariantsLayer, m_outStageData), errorString);
     AL_MAYA_CHECK_ERROR(attributeAffects(m_stageDataDirty, m_outStageData), errorString);
     AL_MAYA_CHECK_ERROR(attributeAffects(m_assetResolverConfig, m_outStageData), errorString);
   }
@@ -1833,6 +1835,15 @@ MStatus ProxyShape::computeOutStageData(const MPlug& plug, MDataBlock& dataBlock
   {
     loadStage();
   }
+
+  MStatus retValue = MS::kSuccess;
+  MDataHandle usdVariantsLayerHandle = dataBlock.outputValue(m_usdVariantsLayer, &retValue);
+  CHECK_MSTATUS_AND_RETURN_IT(retValue);
+
+  std::string variants;
+  m_stage->GetSessionLayer()->ExportToString(&variants);
+  usdVariantsLayerHandle.setString(variants.c_str());
+
   // Set the output stage data params
   usdStageData->stage = m_stage;
   usdStageData->primPath = m_path;
